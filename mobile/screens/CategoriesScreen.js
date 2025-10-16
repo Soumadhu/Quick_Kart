@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { products, categories } from '../data/mockData';
+import { products, categories } from '../../shared/mockData';
 
 export default function CategoriesScreen({ route, navigation }) {
   const { categoryId } = route.params || {};
