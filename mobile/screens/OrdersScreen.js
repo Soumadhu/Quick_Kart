@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
-import { orders, products } from '../data/mockData';
+import { orders, products } from '../../shared/mockData';
 
 export default function OrdersScreen() {
   const getProductById = (id) => products.find(p => p.id === id);

@@ -1,35 +1,65 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import Dashboard from './pages/Dashboard';
+import Products from './pages/Products';
+import Orders from './pages/Orders';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Router>
+      <div className="flex h-screen bg-gray-100">
+        <aside className="w-64 bg-white shadow-lg">
+          <div className="p-6 bg-yellow-400">
+            <h1 className="text-2xl font-bold">Blinkit Admin</h1>
+            <p className="text-sm">Quick Commerce</p>
+          </div>
+          <nav className="mt-6">
+            <NavLink
+              to="/"
+              className={({ isActive }) =>
+                `flex items-center px-6 py-3 text-gray-700 hover:bg-yellow-50 ${
+                  isActive ? 'bg-yellow-50 border-r-4 border-yellow-400' : ''
+                }`
+              }
+            >
+              <span className="mr-3">📊</span>
+              Dashboard
+            </NavLink>
+            <NavLink
+              to="/products"
+              className={({ isActive }) =>
+                `flex items-center px-6 py-3 text-gray-700 hover:bg-yellow-50 ${
+                  isActive ? 'bg-yellow-50 border-r-4 border-yellow-400' : ''
+                }`
+              }
+            >
+              <span className="mr-3">🛍️</span>
+              Products
+            </NavLink>
+            <NavLink
+              to="/orders"
+              className={({ isActive }) =>
+                `flex items-center px-6 py-3 text-gray-700 hover:bg-yellow-50 ${
+                  isActive ? 'bg-yellow-50 border-r-4 border-yellow-400' : ''
+                }`
+              }
+            >
+              <span className="mr-3">📦</span>
+              Orders
+            </NavLink>
+          </nav>
+        </aside>
+
+        <main className="flex-1 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/orders" element={<Orders />} />
+          </Routes>
+        </main>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </Router>
+  );
 }
 
-export default App
+export default App;
