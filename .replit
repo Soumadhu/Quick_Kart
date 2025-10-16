@@ -12,15 +12,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Admin Dashboard"
+args = "Blinkit Mobile App"
 
 [[workflows.workflow]]
-name = "Admin Dashboard"
+name = "Blinkit Mobile App"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "cd admin && npm run dev"
+args = "cd mobile && PORT=5000 npx expo start --web --port 5000"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
@@ -29,3 +29,7 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 43653
+externalPort = 3000

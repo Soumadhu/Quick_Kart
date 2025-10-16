@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { users } from '../../shared/mockData';
+import { users } from '../shared/mockData';
 
 export default function ProfileScreen() {
   const user = users[0];
