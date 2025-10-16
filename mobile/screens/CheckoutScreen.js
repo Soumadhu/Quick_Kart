@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { users } from '../../shared/mockData';
+import { users } from '../shared/mockData';
 
 export default function CheckoutScreen({ navigation }) {
   const user = users[0];

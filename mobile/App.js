@@ -1,4 +1,5 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -29,7 +30,7 @@ function HomeTabs() {
         component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: () => '🏠',
+          tabBarIcon: () => <Text>🏠</Text>,
         }}
       />
       <Tab.Screen
@@ -37,7 +38,7 @@ function HomeTabs() {
         component={CartScreen}
         options={{
           tabBarLabel: 'Cart',
-          tabBarIcon: () => '🛒',
+          tabBarIcon: () => <Text>🛒</Text>,
           headerShown: true,
           headerTitle: 'My Cart',
         }}
@@ -47,7 +48,7 @@ function HomeTabs() {
         component={OrdersScreen}
         options={{
           tabBarLabel: 'Orders',
-          tabBarIcon: () => '📦',
+          tabBarIcon: () => <Text>📦</Text>,
           headerShown: true,
           headerTitle: 'My Orders',
         }}
@@ -57,7 +58,7 @@ function HomeTabs() {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: () => '👤',
+          tabBarIcon: () => <Text>👤</Text>,
           headerShown: true,
           headerTitle: 'My Profile',
         }}
