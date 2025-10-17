@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, SafeAreaView, StatusBar } from 'react-native';
 import { categories, products } from '../shared/mockData';
 import AuthModal from './AuthModal';
 
@@ -64,34 +64,37 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.deliveryLabel}>Delivery in 8 minutes</Text>
-          <Text style={styles.location}>Home - Mumbai 400001 📍</Text>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8C400" />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topStrip}>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.deliveryLabel}>Delivery in 8 minutes</Text>
+              <Text style={styles.location}>Home - Mumbai 400001 📍</Text>
+            </View>
+            <TouchableOpacity 
+              style={isLoggedIn ? styles.userButton : styles.authButton}
+              onPress={() => isLoggedIn ? handleLogout() : setShowAuthModal(true)}
+            >
+              {isLoggedIn ? (
+                <>
+                  <Text style={styles.userIcon}>👤</Text>
+                  <Text style={styles.userText}>My Account</Text>
+                </>
+              ) : (
+                <Text style={styles.authButtonText}>Login / Register</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity 
-          style={isLoggedIn ? styles.userButton : styles.authButton}
-          onPress={() => isLoggedIn ? handleLogout() : setShowAuthModal(true)}
-        >
-          {isLoggedIn ? (
-            <>
-              <Text style={styles.userIcon}>👤</Text>
-              <Text style={styles.userText}>My Account</Text>
-            </>
-          ) : (
-            <Text style={styles.authButtonText}>Login / Register</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
+      </SafeAreaView>
       <AuthModal
         visible={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onLogin={handleLogin}
         onRegister={handleRegister}
       />
-
-      <ScrollView>
+      <ScrollView style={styles.scrollView}>
 
       <View style={styles.searchContainer}>
         <TextInput
@@ -135,14 +138,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  safeArea: {
+    backgroundColor: '#E6B800',
+  },
+  topStrip: {
+    backgroundColor: '#E6B800',
+    paddingTop: 10,
+    paddingBottom: 10,
+  },
+  scrollView: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
     backgroundColor: '#F8C400',
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

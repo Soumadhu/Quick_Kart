@@ -14,6 +14,8 @@ import CheckoutScreen from './screens/CheckoutScreen';
 import OrdersScreen from './screens/OrdersScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import EditAddressScreen from './screens/EditAddressScreen';
+import PaymentGatewayScreen from './screens/PaymentGatewayScreen';
+import OrderConfirmationScreen from './screens/OrderConfirmationScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -118,6 +120,22 @@ export default function App() {
           options={{ 
             headerTitle: 'Edit Address',
             headerBackTitle: 'Back'
+          }}
+        />
+        <Stack.Screen 
+          name="PaymentGateway" 
+          component={PaymentGatewayScreen} 
+          options={{ 
+            headerTitle: 'Payment',
+            headerBackTitle: 'Back'
+          }}
+        />
+        <Stack.Screen 
+          name="OrderConfirmation" 
+          component={OrderConfirmationScreen} 
+          options={{ 
+            headerShown: false,
+            gestureEnabled: false
           }}
         />
       </Stack.Navigator>

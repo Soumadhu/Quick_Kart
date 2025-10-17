@@ -40,6 +40,16 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   const handlePlaceOrder = () => {
+    if (paymentMethod !== 'Cash on Delivery') {
+      // Navigate to payment gateway for non-COD payments
+      navigation.navigate('PaymentGateway', { 
+        totalAmount: total,
+        paymentMethod: paymentMethod
+      });
+      return;
+    }
+    
+    // For Cash on Delivery
     Alert.alert(
       'Order Placed!',
       'Your order has been placed successfully. It will be delivered in 8 minutes.',
