@@ -1,13 +1,35 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList } from 'react-native';
 import { categories, products } from '../shared/mockData';
+import AuthModal from './AuthModal';
 
 export default function HomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   
   const filteredProducts = searchQuery
     ? products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : products;
+
+  const handleLogin = async (credentials) => {
+    // TODO: Implement actual login logic
+    console.log('Login with:', credentials);
+    setIsLoggedIn(true);
+    setShowAuthModal(false);
+  };
+
+  const handleRegister = async (userData) => {
+    // TODO: Implement actual registration logic
+    console.log('Register with:', userData);
+    // Auto-login after registration
+    setIsLoggedIn(true);
+    setShowAuthModal(false);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+  };
 
   const renderCategory = ({ item }) => (
     <TouchableOpacity
@@ -41,13 +63,35 @@ export default function HomeScreen({ navigation }) {
   );
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.deliveryLabel}>Delivery in 8 minutes</Text>
           <Text style={styles.location}>Home - Mumbai 400001 📍</Text>
         </View>
+        <TouchableOpacity 
+          style={isLoggedIn ? styles.userButton : styles.authButton}
+          onPress={() => isLoggedIn ? handleLogout() : setShowAuthModal(true)}
+        >
+          {isLoggedIn ? (
+            <>
+              <Text style={styles.userIcon}>👤</Text>
+              <Text style={styles.userText}>My Account</Text>
+            </>
+          ) : (
+            <Text style={styles.authButtonText}>Login / Register</Text>
+          )}
+        </TouchableOpacity>
       </View>
+
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+      />
+
+      <ScrollView>
 
       <View style={styles.searchContainer}>
         <TextInput
@@ -81,7 +125,8 @@ export default function HomeScreen({ navigation }) {
           scrollEnabled={false}
         />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -91,17 +136,73 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 16,
     backgroundColor: '#F8C400',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   deliveryLabel: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#333',
   },
   location: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 2,
+    color: '#111',
+  },
+  authButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  authButtonText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  // Add these styles for when user is logged in
+  userButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  userIcon: {
+    marginRight: 6,
     fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 4,
+  },
+  userText: {
+    color: '#333',
+    fontWeight: '600',
+    fontSize: 14,
   },
   searchContainer: {
     padding: 16,

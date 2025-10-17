@@ -1,9 +1,56 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { users } from '../shared/mockData';
 
-export default function ProfileScreen() {
-  const user = users[0];
+export default function ProfileScreen({ navigation }) {
+  const [user, setUser] = useState(users[0]);
+
+  const handleSaveAddress = (updatedAddress) => {
+    setUser(prevUser => {
+      const existingIndex = prevUser.addresses.findIndex(a => a.id === updatedAddress.id);
+      const newAddresses = [...prevUser.addresses];
+      
+      if (existingIndex >= 0) {
+        // Update existing address
+        newAddresses[existingIndex] = updatedAddress;
+      } else {
+        // Add new address
+        newAddresses.push(updatedAddress);
+      }
+
+      // If this is set as default, unset others
+      if (updatedAddress.isDefault) {
+        newAddresses.forEach(addr => {
+          if (addr.id !== updatedAddress.id) {
+            addr.isDefault = false;
+          }
+        });
+      }
+
+      return { ...prevUser, addresses: newAddresses };
+    });
+  };
+
+  const handleDeleteAddress = (addressId) => {
+    setUser(prevUser => ({
+      ...prevUser,
+      addresses: prevUser.addresses.filter(addr => addr.id !== addressId)
+    }));
+  };
+
+  const handleAddAddress = () => {
+    navigation.navigate('EditAddress', {
+      onSave: handleSaveAddress,
+    });
+  };
+
+  const handleEditAddress = (address) => {
+    navigation.navigate('EditAddress', {
+      address: { ...address },
+      onSave: handleSaveAddress,
+      onDelete: handleDeleteAddress,
+    });
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -19,22 +66,32 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Saved Addresses</Text>
         {user.addresses.map((address) => (
-          <View key={address.id} style={styles.addressCard}>
+          <TouchableOpacity 
+            key={address.id} 
+            style={styles.addressCard}
+            onPress={() => handleEditAddress(address)}
+          >
             <View style={styles.addressHeader}>
               <Text style={styles.addressType}>{address.type}</Text>
-              {address.isDefault && (
-                <View style={styles.defaultBadge}>
-                  <Text style={styles.defaultText}>Default</Text>
-                </View>
-              )}
+              <View style={styles.addressActions}>
+                {address.isDefault && (
+                  <View style={styles.defaultBadge}>
+                    <Text style={styles.defaultText}>Default</Text>
+                  </View>
+                )}
+                <Text style={styles.editText}>Edit</Text>
+              </View>
             </View>
             <Text style={styles.addressText}>{address.address}</Text>
             <Text style={styles.addressText}>
               {address.city} - {address.pincode}
             </Text>
-          </View>
+          </TouchableOpacity>
         ))}
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity 
+          style={styles.addButton}
+          onPress={handleAddAddress}
+        >
           <Text style={styles.addButtonText}>+ Add New Address</Text>
         </TouchableOpacity>
       </View>
@@ -104,8 +161,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   contact: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 16,
+    color: '#333',
     marginBottom: 2,
   },
   email: {
@@ -123,79 +180,92 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   addressCard: {
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#fff',
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
   addressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
+    alignItems: 'center',
+  },
+  addressActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   addressType: {
     fontSize: 16,
     fontWeight: '600',
   },
   defaultBadge: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#E8F5E9',
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 12,
   },
   defaultText: {
-    fontSize: 10,
-    color: '#fff',
-    fontWeight: '600',
+    color: '#2E7D32',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  editText: {
+    color: '#F8C400',
+    fontSize: 14,
+    fontWeight: '500',
   },
   addressText: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   addButton: {
     borderWidth: 1,
     borderColor: '#F8C400',
-    borderStyle: 'dashed',
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     alignItems: 'center',
+    marginTop: 8,
   },
   addButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
     color: '#F8C400',
+    fontWeight: '600',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   menuIcon: {
-    fontSize: 24,
-    marginRight: 12,
+    fontSize: 20,
+    marginRight: 16,
+    width: 24,
+    textAlign: 'center',
   },
   menuText: {
     flex: 1,
     fontSize: 16,
   },
   menuArrow: {
-    fontSize: 24,
+    fontSize: 20,
     color: '#999',
   },
   logoutButton: {
-    backgroundColor: '#fff',
     margin: 16,
-    padding: 16,
+    backgroundColor: '#fff',
     borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
   },
   logoutText: {
-    fontSize: 16,
+    color: '#ff4444',
     fontWeight: '600',
-    color: '#EF4444',
+    fontSize: 16,
   },
 });

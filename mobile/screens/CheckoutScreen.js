@@ -1,15 +1,43 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { users } from '../shared/mockData';
 
 export default function CheckoutScreen({ navigation }) {
   const user = users[0];
   const [selectedAddress, setSelectedAddress] = useState(user.addresses[0]);
   const [paymentMethod, setPaymentMethod] = useState('Cash on Delivery');
+  const [promoCode, setPromoCode] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState(null);
+  const [showPromoInput, setShowPromoInput] = useState(false);
+  const [promoError, setPromoError] = useState('');
 
   const subtotal = 98;
   const deliveryFee = 10;
-  const total = subtotal + deliveryFee;
+  const discount = appliedPromo ? Math.floor(subtotal * 0.1) : 0;
+  const total = subtotal + deliveryFee - discount;
+
+  const handleApplyPromo = () => {
+    if (!promoCode.trim()) {
+      setPromoError('Please enter a promo code');
+      return;
+    }
+    
+    if (promoCode.toUpperCase() === 'WELCOME10') {
+      setAppliedPromo({
+        code: promoCode.toUpperCase(),
+        discount: Math.floor(subtotal * 0.1),
+      });
+      setPromoError('');
+      setShowPromoInput(false);
+    } else {
+      setPromoError('Invalid promo code');
+    }
+  };
+
+  const removePromoCode = () => {
+    setAppliedPromo(null);
+    setPromoCode('');
+  };
 
   const handlePlaceOrder = () => {
     Alert.alert(
@@ -51,6 +79,47 @@ export default function CheckoutScreen({ navigation }) {
         ))}
       </View>
 
+      {/* Promo Code Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Promo Code</Text>
+        {appliedPromo ? (
+          <View style={styles.appliedPromoContainer}>
+            <Text style={styles.appliedPromoText}>
+              Promo {appliedPromo.code} applied (-₹{appliedPromo.discount})
+            </Text>
+            <TouchableOpacity onPress={removePromoCode}>
+              <Text style={styles.removePromoText}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        ) : showPromoInput ? (
+          <View>
+            <View style={styles.promoInputContainer}>
+              <TextInput
+                style={styles.promoInput}
+                placeholder="Enter promo code"
+                value={promoCode}
+                onChangeText={setPromoCode}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity 
+                style={styles.applyButton}
+                onPress={handleApplyPromo}
+              >
+                <Text style={styles.applyButtonText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+            {promoError ? <Text style={styles.errorText}>{promoError}</Text> : null}
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.addPromoButton}
+            onPress={() => setShowPromoInput(true)}
+          >
+            <Text style={styles.addPromoText}>+ Add Promo Code</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Payment Method</Text>
         {['Cash on Delivery', 'UPI', 'Card', 'Wallet'].map((method) => (
@@ -80,6 +149,12 @@ export default function CheckoutScreen({ navigation }) {
           <Text style={styles.billLabel}>Delivery Fee</Text>
           <Text style={styles.billValue}>₹{deliveryFee}</Text>
         </View>
+        {appliedPromo && (
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Promo Discount</Text>
+            <Text style={[styles.billValue, {color: '#4CAF50'}]}>-₹{discount}</Text>
+          </View>
+        )}
         <View style={[styles.billRow, styles.totalRow]}>
           <Text style={styles.totalLabel}>Total Amount</Text>
           <Text style={styles.totalValue}>₹{total}</Text>
@@ -109,6 +184,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 12,
   },
+  // Address Card Styles
   addressCard: {
     flexDirection: 'row',
     padding: 12,
@@ -150,6 +226,7 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 2,
   },
+  // Payment Method Styles
   paymentCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -166,6 +243,65 @@ const styles = StyleSheet.create({
   paymentText: {
     fontSize: 16,
   },
+  // Promo Code Styles
+  addPromoButton: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#F8C400',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addPromoText: {
+    color: '#F8C400',
+    fontWeight: '600',
+  },
+  promoInputContainer: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  promoInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+    fontSize: 14,
+  },
+  applyButton: {
+    backgroundColor: '#F8C400',
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: '#000',
+    fontWeight: '600',
+  },
+  appliedPromoContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 8,
+  },
+  appliedPromoText: {
+    color: '#2E7D32',
+    fontWeight: '500',
+  },
+  removePromoText: {
+    color: '#D32F2F',
+    textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
+  errorText: {
+    color: '#D32F2F',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  // Bill Summary Styles
   billRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
