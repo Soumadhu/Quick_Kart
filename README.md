@@ -1,7 +1,7 @@
-# Blinkit-Like Quick Commerce Mobile App
+# Quick Commerce Mobile App
 
 ## Overview
-A comprehensive quick commerce mobile application similar to Blinkit, built with React Native and Expo. The app features product browsing, shopping cart, checkout, order tracking, and user profile management.
+A comprehensive quick commerce mobile application built with React Native and Expo. The app features product browsing, shopping cart, checkout, order tracking, and user profile management.
 
 ## Project Structure
 
@@ -36,18 +36,36 @@ mobile/
 - **React Native** with Expo
 - **React Navigation** (Stack & Bottom Tabs)
 - **Expo Web** support for browser preview
-- **Custom Blinkit-inspired UI** (Yellow branding #F8C400)
+- **Custom UI** with yellow branding (#F8C400)
 
 ## Data Architecture
 
 Mock data is located in `mobile/shared/mockData.js`:
-- **Products**: 8 sample products across various categories
-- **Categories**: 8 categories (Vegetables, Dairy, Snacks, etc.)
+- **Products**: Sample products across various categories
+- **Categories**: Multiple product categories
 - **Orders**: Sample orders with different statuses
 - **Users**: User profile with saved addresses
 - **Helper Functions**: Cart management and CRUD operations
 
-## Running the Project
+## Getting Started
+
+### Prerequisites
+- Node.js 16+ and npm
+- Expo CLI (`npm install -g expo-cli`)
+- Android Studio / Xcode (for mobile development) or Expo Go app (for testing on device)
+
+### Installation
+1. Clone the repository
+2. Navigate to the mobile directory: `cd mobile`
+3. Install dependencies: `npm install`
+4. Start the development server: `npx expo start`
+5. Use Expo Go app on your mobile device (scan QR code) or press 'w' to open in web browser
+
+### Available Scripts
+- `npm start` - Start the development server
+- `npm run android` - Run on Android device/emulator
+- `npm run ios` - Run on iOS simulator (macOS only)
+- `npm run web` - Run in web browser
 
 ### Web Preview (Current)
 The app is running in web mode on port 5000:
@@ -93,7 +111,7 @@ cd mobile && npx expo run:android
 9. **Build APK**: Create production Android build for distribution
 
 ## Notes
-- App currently runs in web mode for easy preview in Replit
+- The app can be run in web mode for easy preview
 - To test on Android, use Expo Go app on your phone
 - Cart state is maintained locally for demo purposes
 - For production, implement proper state management (Redux/Zustand) or API layer
