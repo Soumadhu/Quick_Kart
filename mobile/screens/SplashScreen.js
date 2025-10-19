@@ -13,7 +13,7 @@ export default function SplashScreen({ navigation }) {
         easing: Easing.ease,
         useNativeDriver: true,
       }).start(() => {
-        navigation.replace('HomeTabs');
+        navigation.replace('RoleSelection');
       });
     }, 1500);
 

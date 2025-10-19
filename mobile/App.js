@@ -6,16 +6,19 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 
 import SplashScreen from './screens/SplashScreen';
+import RoleSelectionScreen from './screens/RoleSelectionScreen';
 import HomeScreen from './screens/HomeScreen';
 import CategoriesScreen from './screens/CategoriesScreen';
 import ProductDetailsScreen from './screens/ProductDetailsScreen';
 import CartScreen from './screens/CartScreen';
 import CheckoutScreen from './screens/CheckoutScreen';
 import OrdersScreen from './screens/OrdersScreen';
-import ProfileScreen from './screens/ProfileScreen';
+import UserProfileScreen from './screens/UserProfileScreen';
 import EditAddressScreen from './screens/EditAddressScreen';
 import PaymentGatewayScreen from './screens/PaymentGatewayScreen';
 import OrderConfirmationScreen from './screens/OrderConfirmationScreen';
+import RiderLoginScreen from './screens/rider/RiderLoginScreen';
+import RiderTabs from './navigation/RiderTabs';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -59,12 +62,11 @@ function HomeTabs() {
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileScreen}
+        component={UserProfileScreen}
         options={{
           tabBarLabel: 'Profile',
           tabBarIcon: () => <Text>👤</Text>,
-          headerShown: true,
-          headerTitle: 'My Profile',
+          headerShown: false,
         }}
       />
     </Tab.Navigator>
@@ -95,9 +97,20 @@ export default function App() {
           options={{ headerShown: false }}
         />
         <Stack.Screen 
+          name="RoleSelection" 
+          component={RoleSelectionScreen} 
+          options={{ 
+            headerShown: false,
+            gestureEnabled: false  // Prevent going back to splash
+          }}
+        />
+        <Stack.Screen 
           name="HomeTabs" 
           component={HomeTabs} 
-          options={{ headerShown: false }}
+          options={{ 
+            headerShown: false,
+            gestureEnabled: false  // Prevent going back to role selection
+          }}
         />
         <Stack.Screen 
           name="Categories" 
@@ -133,6 +146,22 @@ export default function App() {
         <Stack.Screen 
           name="OrderConfirmation" 
           component={OrderConfirmationScreen} 
+          options={{ 
+            headerShown: false,
+            gestureEnabled: false
+          }}
+        />
+        <Stack.Screen 
+          name="RiderLogin" 
+          component={RiderLoginScreen} 
+          options={{ 
+            title: 'Rider Login',
+            headerBackTitle: 'Back'
+          }}
+        />
+        <Stack.Screen 
+          name="RiderTabs" 
+          component={RiderTabs} 
           options={{ 
             headerShown: false,
             gestureEnabled: false

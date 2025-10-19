@@ -1,20 +1,30 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, FlatList, Alert } from 'react-native';
+import { cart, updateCartQuantity, removeFromCart } from '../shared/mockData';
 
 export default function CartScreen({ navigation }) {
-  const [cartItems, setCartItems] = useState([
-    { id: '1', name: 'Fresh Tomatoes', price: 35, quantity: 2, unit: '500g', image: '🍅' },
-    { id: '3', name: 'Fresh Milk', price: 28, quantity: 1, unit: '500ml', image: '🥛' },
-  ]);
+  const [cartItems, setCartItems] = useState([...cart]);
+
+  // Update cart items when cart changes
+  useEffect(() => {
+    setCartItems([...cart]);
+  }, [cart]);
 
   const updateQuantity = (id, delta) => {
-    setCartItems(items =>
-      items.map(item =>
-        item.id === id
-          ? { ...item, quantity: Math.max(0, item.quantity + delta) }
-          : item
-      ).filter(item => item.quantity > 0)
-    );
+    const item = cart.find(item => item.id === id);
+    if (item) {
+      const newQuantity = Math.max(0, item.quantity + delta);
+      if (newQuantity === 0) {
+        removeFromCart(id);
+      } else {
+        updateCartQuantity(id, newQuantity);
+      }
+    }
+  };
+
+  const removeItem = (id) => {
+    removeFromCart(id);
+    Alert.alert('Removed', 'Item has been removed from your cart');
   };
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -25,9 +35,17 @@ export default function CartScreen({ navigation }) {
     <View style={styles.cartItem}>
       <Text style={styles.itemImage}>{item.image}</Text>
       <View style={styles.itemDetails}>
+        <View style={styles.itemInfo}>
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemUnit}>{item.unit}</Text>
         <Text style={styles.itemPrice}>₹{item.price}</Text>
+        <TouchableOpacity 
+          style={styles.removeButton}
+          onPress={() => removeItem(item.id)}
+        >
+          <Text style={styles.removeButtonText}>Remove</Text>
+        </TouchableOpacity>
+      </View>
       </View>
       <View style={styles.quantityControl}>
         <TouchableOpacity
@@ -124,6 +142,10 @@ const styles = StyleSheet.create({
   },
   itemDetails: {
     flex: 1,
+    marginLeft: 10,
+  },
+  itemInfo: {
+    flex: 1,
   },
   itemName: {
     fontSize: 16,
@@ -131,13 +153,27 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   itemUnit: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#666',
     marginBottom: 4,
   },
   itemPrice: {
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2E7D32',
+    marginBottom: 8,
+  },
+  removeButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 4,
+  },
+  removeButtonText: {
+    color: '#C62828',
+    fontSize: 12,
+    fontWeight: '500',
   },
   quantityControl: {
     flexDirection: 'row',
