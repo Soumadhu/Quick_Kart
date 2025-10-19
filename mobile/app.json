@@ -1,29 +1,41 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "QuickKart",
+    "slug": "quickkart",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": null,
-      "resizeMode": "contain",
-      "backgroundColor": "#F8C400"
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow QuickKart to use your location for delivery tracking."
+        }
+      ]
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.quickkart.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow QuickKart to use your location for delivery tracking.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow QuickKart to use your location for delivery tracking.",
+        "UIBackgroundModes": ["location", "fetch"]
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "package": "com.quickkart.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

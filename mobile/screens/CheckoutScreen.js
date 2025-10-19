@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
-import { users } from '../shared/mockData';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, FlatList } from 'react-native';
+import { users, cart } from '../shared/mockData';
 
 export default function CheckoutScreen({ navigation }) {
   const user = users[0];
@@ -11,10 +11,28 @@ export default function CheckoutScreen({ navigation }) {
   const [showPromoInput, setShowPromoInput] = useState(false);
   const [promoError, setPromoError] = useState('');
 
-  const subtotal = 98;
+  const [cartItems, setCartItems] = useState([...cart]);
+
+  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const deliveryFee = 10;
   const discount = appliedPromo ? Math.floor(subtotal * 0.1) : 0;
   const total = subtotal + deliveryFee - discount;
+
+  useEffect(() => {
+    setCartItems([...cart]);
+  }, [cart]);
+
+  const renderCartItem = ({ item }) => (
+    <View style={styles.cartItem}>
+      <Text style={styles.itemImage}>{item.image}</Text>
+      <View style={styles.itemDetails}>
+        <Text style={styles.itemName}>{item.name}</Text>
+        <Text style={styles.itemUnit}>{item.unit}</Text>
+        <Text style={styles.itemPrice}>₹{item.price} x {item.quantity}</Text>
+      </View>
+      <Text style={styles.itemTotal}>₹{item.price * item.quantity}</Text>
+    </View>
+  );
 
   const handleApplyPromo = () => {
     if (!promoCode.trim()) {
@@ -41,7 +59,6 @@ export default function CheckoutScreen({ navigation }) {
 
   const handlePlaceOrder = () => {
     if (paymentMethod !== 'Cash on Delivery') {
-      // Navigate to payment gateway for non-COD payments
       navigation.navigate('PaymentGateway', { 
         totalAmount: total,
         paymentMethod: paymentMethod
@@ -49,7 +66,6 @@ export default function CheckoutScreen({ navigation }) {
       return;
     }
     
-    // For Cash on Delivery
     Alert.alert(
       'Order Placed!',
       'Your order has been placed successfully. It will be delivered in 8 minutes.',
@@ -63,9 +79,20 @@ export default function CheckoutScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Delivery Address</Text>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your Order</Text>
+          <FlatList
+            data={cartItems}
+            renderItem={renderCartItem}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Delivery Address</Text>
         {user.addresses.map((address) => (
           <TouchableOpacity
             key={address.id}
@@ -89,7 +116,6 @@ export default function CheckoutScreen({ navigation }) {
         ))}
       </View>
 
-      {/* Promo Code Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Promo Code</Text>
         {appliedPromo ? (
@@ -130,52 +156,39 @@ export default function CheckoutScreen({ navigation }) {
         )}
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Payment Method</Text>
-        {['Cash on Delivery', 'UPI', 'Card', 'Wallet'].map((method) => (
-          <TouchableOpacity
-            key={method}
-            style={[
-              styles.paymentCard,
-              paymentMethod === method && styles.selectedPayment,
-            ]}
-            onPress={() => setPaymentMethod(method)}
-          >
-            <View style={styles.radioButton}>
-              {paymentMethod === method && <View style={styles.radioButtonInner} />}
-            </View>
-            <Text style={styles.paymentText}>{method}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bill Summary</Text>
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>Subtotal</Text>
-          <Text style={styles.billValue}>₹{subtotal}</Text>
-        </View>
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>Delivery Fee</Text>
-          <Text style={styles.billValue}>₹{deliveryFee}</Text>
-        </View>
-        {appliedPromo && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Bill Summary</Text>
           <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Promo Discount</Text>
-            <Text style={[styles.billValue, {color: '#4CAF50'}]}>-₹{discount}</Text>
+            <Text style={styles.billLabel}>Subtotal</Text>
+            <Text style={styles.billValue}>₹{subtotal}</Text>
           </View>
-        )}
-        <View style={[styles.billRow, styles.totalRow]}>
-          <Text style={styles.totalLabel}>Total Amount</Text>
-          <Text style={styles.totalValue}>₹{total}</Text>
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>Delivery Fee</Text>
+            <Text style={styles.billValue}>₹{deliveryFee}</Text>
+          </View>
+          {appliedPromo && (
+            <View style={styles.billRow}>
+              <Text style={styles.billLabel}>Promo Discount</Text>
+              <Text style={[styles.billValue, {color: '#4CAF50'}]}>-₹{discount}</Text>
+            </View>
+          )}
+          <View style={[styles.billRow, styles.totalRow]}>
+            <Text style={styles.totalLabel}>Total Amount</Text>
+            <Text style={styles.totalValue}>₹{total}</Text>
+          </View>
         </View>
-      </View>
+      </ScrollView>
 
-      <TouchableOpacity style={styles.placeOrderButton} onPress={handlePlaceOrder}>
-        <Text style={styles.placeOrderText}>Place Order</Text>
-        <Text style={styles.placeOrderPrice}>₹{total}</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      <View style={styles.placeOrderContainer}>
+        <TouchableOpacity 
+          style={styles.placeOrderButton} 
+          onPress={handlePlaceOrder}
+        >
+          <Text style={styles.placeOrderText}>Place Order</Text>
+          <Text style={styles.placeOrderPrice}>₹{total}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -184,17 +197,62 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollView: {
+    flex: 1,
+    marginBottom: 70, // Space for the fixed button
+  },
   section: {
     backgroundColor: '#fff',
     marginBottom: 12,
     padding: 16,
+  },
+  placeOrderContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#fff',
+    padding: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  // Address Card Styles
+  cartItem: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    alignItems: 'center',
+  },
+  itemImage: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  itemDetails: {
+    flex: 1,
+  },
+  itemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  itemUnit: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  itemPrice: {
+    fontSize: 14,
+    color: '#666',
+  },
+  itemTotal: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
   addressCard: {
     flexDirection: 'row',
     padding: 12,

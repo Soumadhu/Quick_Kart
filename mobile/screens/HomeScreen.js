@@ -1,12 +1,43 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, SafeAreaView, StatusBar } from 'react-native';
-import { categories, products } from '../shared/mockData';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, SafeAreaView, StatusBar, Animated } from 'react-native';
+import { categories, products, addToCart, cart, updateCartQuantity, removeFromCart } from '../shared/mockData';
 import AuthModal from './AuthModal';
 
 export default function HomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [cartItems, setCartItems] = useState([]);
+  const [notification, setNotification] = useState({ visible: false, message: '', itemCount: 0 });
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  
+  // Show notification
+  const showNotification = (count) => {
+    const message = count === 1 ? '1 item added to cart' : `${count} items added to cart`;
+    setNotification({ visible: true, message, itemCount: count });
+    
+    // Animate in
+    Animated.sequence([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2000),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setNotification({ ...notification, visible: false });
+    });
+  };
+  
+  // Update cart items when cart changes
+  useEffect(() => {
+    setCartItems([...cart]);
+  }, [cart]);
   
   const filteredProducts = searchQuery
     ? products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -41,30 +72,96 @@ export default function HomeScreen({ navigation }) {
     </TouchableOpacity>
   );
 
-  const renderProduct = ({ item }) => (
-    <TouchableOpacity
-      style={styles.productCard}
-      onPress={() => navigation.navigate('ProductDetails', { product: item })}
-    >
-      <Text style={styles.productImage}>{item.image}</Text>
-      <Text style={styles.productName}>{item.name}</Text>
-      <Text style={styles.productUnit}>{item.unit}</Text>
-      <View style={styles.priceRow}>
-        <Text style={styles.price}>₹{item.price}</Text>
-        {item.originalPrice && (
-          <Text style={styles.originalPrice}>₹{item.originalPrice}</Text>
+  const renderProduct = ({ item }) => {
+    const cartItem = cart.find(cartItem => cartItem.id === item.id);
+    const quantity = cartItem ? cartItem.quantity : 0;
+
+    const handleQuantityChange = (delta) => {
+      if (!isLoggedIn) {
+        setShowAuthModal(true);
+        return;
+      }
+      
+      const newQuantity = quantity + delta;
+      if (newQuantity <= 0) {
+        removeFromCart(item.id);
+      } else {
+        updateCartQuantity(item.id, newQuantity);
+        if (delta > 0) {
+          showNotification(delta);
+        }
+      }
+    };
+
+    const handleAddToCart = () => {
+      if (!isLoggedIn) {
+        setShowAuthModal(true);
+        return;
+      }
+      addToCart(item);
+      showNotification(1);
+    };
+
+    return (
+      <TouchableOpacity
+        style={styles.productCard}
+        onPress={() => navigation.navigate('ProductDetails', { product: item })}
+      >
+        <Text style={styles.productImage}>{item.image}</Text>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productUnit}>{item.unit}</Text>
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>₹{item.price}</Text>
+          {item.originalPrice && (
+            <Text style={styles.originalPrice}>₹{item.originalPrice}</Text>
+          )}
+        </View>
+        <Text style={styles.deliveryTime}>⚡ {item.deliveryTime}</Text>
+        
+        {quantity > 0 ? (
+          <View style={styles.quantityControl}>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => handleQuantityChange(-1)}
+            >
+              <Text style={styles.quantityButtonText}>-</Text>
+            </TouchableOpacity>
+            <Text style={styles.quantity}>{quantity}</Text>
+            <TouchableOpacity
+              style={styles.quantityButton}
+              onPress={() => handleQuantityChange(1)}
+            >
+              <Text style={styles.quantityButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={handleAddToCart}
+          >
+            <Text style={styles.addButtonText}>ADD</Text>
+          </TouchableOpacity>
         )}
-      </View>
-      <Text style={styles.deliveryTime}>⚡ {item.deliveryTime}</Text>
-      <TouchableOpacity style={styles.addButton}>
-        <Text style={styles.addButtonText}>ADD</Text>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8C400" />
+      {notification.visible && (
+        <Animated.View 
+          style={[
+            styles.notification,
+            { opacity: fadeAnim }
+          ]}
+        >
+          <Text style={styles.notificationText}>{notification.message}</Text>
+          <View style={styles.notificationBadge}>
+            <Text style={styles.notificationBadgeText}>{notification.itemCount}</Text>
+          </View>
+        </Animated.View>
+      )}
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topStrip}>
           <View style={styles.header}>
@@ -74,7 +171,13 @@ export default function HomeScreen({ navigation }) {
             </View>
             <TouchableOpacity 
               style={isLoggedIn ? styles.userButton : styles.authButton}
-              onPress={() => isLoggedIn ? handleLogout() : setShowAuthModal(true)}
+              onPress={() => {
+                if (isLoggedIn) {
+                  navigation.navigate('Profile');
+                } else {
+                  setShowAuthModal(true);
+                }
+              }}
             >
               {isLoggedIn ? (
                 <>
@@ -303,12 +406,76 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: '#F8C400',
-    borderRadius: 6,
     padding: 8,
+    borderRadius: 4,
     alignItems: 'center',
+    marginTop: 8,
   },
   addButtonText: {
+    color: '#000',
+    fontWeight: 'bold',
+  },
+  // Notification styles
+  notification: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 1000,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  notificationText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  notificationBadge: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    color: '#4CAF50',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  quantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 4,
+    marginTop: 8,
+  },
+  quantityButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 6,
+  },
+  quantityButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  quantity: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginHorizontal: 12,
   },
 });
