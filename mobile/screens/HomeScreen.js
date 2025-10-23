@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, SafeAreaView, StatusBar, Animated } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, FlatList, SafeAreaView, StatusBar, Animated, Alert } from 'react-native';
 import { categories, products, addToCart, cart, updateCartQuantity, removeFromCart } from '../shared/mockData';
 import AuthModal from './AuthModal';
+import { useAuth } from '../src/contexts/AuthContext';
 
 export default function HomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [notification, setNotification] = useState({ visible: false, message: '', itemCount: 0 });
-  const fadeAnim = useState(new Animated.Value(0))[0];
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const { user, login, register, logout } = useAuth();
+  const isLoggedIn = !!user;
   
   // Show notification
   const showNotification = (count) => {
@@ -44,22 +46,47 @@ export default function HomeScreen({ navigation }) {
     : products;
 
   const handleLogin = async (credentials) => {
-    // TODO: Implement actual login logic
-    console.log('Login with:', credentials);
-    setIsLoggedIn(true);
-    setShowAuthModal(false);
+    try {
+      const result = await login(credentials.email, credentials.password);
+      if (result.success) {
+        setShowAuthModal(false);
+      } else {
+        Alert.alert('Login Failed', result.error || 'Invalid email or password');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'An error occurred during login');
+    }
   };
 
   const handleRegister = async (userData) => {
-    // TODO: Implement actual registration logic
-    console.log('Register with:', userData);
-    // Auto-login after registration
-    setIsLoggedIn(true);
-    setShowAuthModal(false);
+    try {
+      const result = await register({
+        email: userData.email,
+        password: userData.password,
+        firstName: userData.name.split(' ')[0],
+        lastName: userData.name.split(' ').slice(1).join(' ') || ' ',
+        phone: userData.phone,
+      });
+      
+      if (result.success) {
+        setShowAuthModal(false);
+      } else {
+        Alert.alert('Registration Failed', result.error || 'Could not create account');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert('Error', 'An error occurred during registration');
+    }
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'Failed to logout');
+    }
   };
 
   const renderCategory = ({ item }) => (
@@ -148,89 +175,111 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8C400" />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      <View style={styles.headerContainer}>
+        <View style={styles.headerContent}>
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>
+              <Text style={styles.quickText}>Quick</Text>
+              <Text style={styles.kartText}>Kart</Text>
+            </Text>
+          </View>
+          <View style={styles.addressContainer}>
+            <Text style={styles.deliveryLabel}>Delivery to</Text>
+            <View style={styles.locationRow}>
+              <Text style={styles.location}>Home, 123456</Text>
+              <Text style={styles.locationIcon}>▼</Text>
+            </View>
+          </View>
+          <View style={styles.actionsRow}>
+            <View style={styles.actionsContainer}>
+              <TouchableOpacity 
+                style={styles.profileButton}
+                onPress={isLoggedIn ? handleLogout : () => setShowAuthModal(true)}
+              >
+                {isLoggedIn ? (
+                  <View style={styles.profilePhoto}>
+                    <Text style={styles.profileInitial}>
+                      {user?.firstName?.charAt(0)?.toUpperCase() || '👤'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.profilePhoto}>
+                    <Text style={styles.profileIcon}>👤</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.cartButton} 
+                onPress={() => navigation.navigate('Cart')}
+              >
+                <Text style={styles.cartIcon}>🛒</Text>
+                {cartItems.length > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cartItems.length}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        
+        {/* Bottom Row: Search Bar */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for products..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#999"
+            />
+          </View>
+        </View>
+        
+        {isLoggedIn && user && (
+          <Text style={styles.welcomeText}>Hi, {user.firstName}!</Text>
+        )}
+      </View>
+      
       {notification.visible && (
-        <Animated.View 
-          style={[
-            styles.notification,
-            { opacity: fadeAnim }
-          ]}
-        >
+        <Animated.View style={[styles.notification, { opacity: fadeAnim }]}>
           <Text style={styles.notificationText}>{notification.message}</Text>
           <View style={styles.notificationBadge}>
             <Text style={styles.notificationBadgeText}>{notification.itemCount}</Text>
           </View>
         </Animated.View>
       )}
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.topStrip}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.deliveryLabel}>Delivery in 8 minutes</Text>
-              <Text style={styles.location}>Home - Mumbai 400001 📍</Text>
-            </View>
-            <TouchableOpacity 
-              style={isLoggedIn ? styles.userButton : styles.authButton}
-              onPress={() => {
-                if (isLoggedIn) {
-                  navigation.navigate('Profile');
-                } else {
-                  setShowAuthModal(true);
-                }
-              }}
-            >
-              {isLoggedIn ? (
-                <>
-                  <Text style={styles.userIcon}>👤</Text>
-                  <Text style={styles.userText}>My Account</Text>
-                </>
-              ) : (
-                <Text style={styles.authButtonText}>Login / Register</Text>
-              )}
-            </TouchableOpacity>
+      
+      <ScrollView style={styles.scrollView}>
+        <View style={{ padding: 16, paddingTop: 20 }}>
+          {/* Categories Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Categories</Text>
+            <FlatList
+              data={categories}
+              renderItem={renderCategory}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryList}
+            />
+          </View>
+
+          {/* Products Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Popular Items</Text>
+            <FlatList
+              data={filteredProducts}
+              renderItem={renderProduct}
+              keyExtractor={(item) => item.id}
+              numColumns={2}
+              columnWrapperStyle={styles.productRow}
+              scrollEnabled={false}
+            />
           </View>
         </View>
-      </SafeAreaView>
-      <AuthModal
-        visible={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onLogin={handleLogin}
-        onRegister={handleRegister}
-      />
-      <ScrollView style={styles.scrollView}>
-
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search for products..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Shop by Category</Text>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={categories}
-          renderItem={renderCategory}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.categoryList}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Popular Products</Text>
-        <FlatList
-          numColumns={2}
-          data={filteredProducts}
-          renderItem={renderProduct}
-          keyExtractor={(item) => item.id}
-          columnWrapperStyle={styles.productRow}
-          scrollEnabled={false}
-        />
-      </View>
       </ScrollView>
     </View>
   );
@@ -241,92 +290,225 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  safeArea: {
-    backgroundColor: '#E6B800',
+  headerContainer: {
+    padding: 10,
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
-  topStrip: {
-    backgroundColor: '#E6B800',
-    paddingTop: 10,
-    paddingBottom: 10,
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  scrollView: {
+  logoContainer: {
+    marginRight: 0,
+  },
+  logoText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    lineHeight: 26,
+  },
+  quickText: {
+    color: '#F8C400',
+  },
+  kartText: {
+    color: '#4CAF50',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     flex: 1,
   },
-  header: {
+  addressContainer: {
+    marginLeft: 5,
+    paddingLeft: 5,
+    borderLeftWidth: 1,
+    borderLeftColor: '#eee',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+  },
+  deliveryLabel: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 2,
+    width: '100%',
+    textAlign: 'right',
+  },
+  location: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'right',
+    flexShrink: 1,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  locationIcon: {
+    marginLeft: 4,
+    fontSize: 10,
+    flexShrink: 0,
+  },
+  actionsContainer: {
+    flex: 2,  // Takes 2/5 (40%) of the available space
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  searchRow: {
+    width: '100%',
+    marginBottom: 10,
+  },
+  searchContainer: {
+    width: '100%',
+    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    height: 45,
+    justifyContent: 'center',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    padding: 0,
+    margin: 0,
+    height: '100%',
+    includeFontPadding: false,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchIcon: {
+    marginRight: 10,
+    fontSize: 22,
+    color: '#666',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 5,
+  },
+  authButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 10,
+    height: 45,
+    justifyContent: 'center',
+  },
+  authButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  profilePhoto: {
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+  },
+  profileInitial: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#4CAF50',
+  },
+  profileIcon: {
+    fontSize: 32,
+  },
+  cartButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+    elevation: 2,
+  },
+  cartIcon: {
+    fontSize: 22,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+  },
+  notification: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F8C400',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    zIndex: 1000,
   },
-  deliveryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-  },
-  location: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 2,
-    color: '#111',
-  },
-  authButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  authButtonText: {
-    color: '#333',
-    fontWeight: '600',
-    fontSize: 14,
-    letterSpacing: 0.5,
-  },
-  // Add these styles for when user is logged in
-  userButton: {
-    backgroundColor: '#fff',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  userIcon: {
-    marginRight: 6,
-    fontSize: 16,
-  },
-  userText: {
-    color: '#333',
-    fontWeight: '600',
+  notificationText: {
+    color: '#fff',
     fontSize: 14,
   },
-  searchContainer: {
-    padding: 16,
-  },
-  searchInput: {
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 15,
+    paddingTop: 15,
   },
   section: {
     marginBottom: 20,
@@ -338,51 +520,56 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   categoryList: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
   categoryCard: {
-    width: 120,
-    padding: 12,
-    borderRadius: 12,
-    marginRight: 12,
+    width: 70,
+    padding: 6,
+    borderRadius: 8,
+    marginRight: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   categoryIcon: {
-    fontSize: 40,
-    marginBottom: 8,
+    fontSize: 24,
+    marginBottom: 2,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   categoryName: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '500',
     textAlign: 'center',
+    includeFontPadding: false,
+    lineHeight: 12,
   },
   productRow: {
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   productCard: {
     width: '48%',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
   productImage: {
-    fontSize: 48,
+    fontSize: 36,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   productName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   productUnit: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   priceRow: {
     flexDirection: 'row',
@@ -390,32 +577,59 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   price: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
-    marginRight: 8,
+    color: '#333',
   },
   originalPrice: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#999',
     textDecorationLine: 'line-through',
+    marginLeft: 4,
   },
   deliveryTime: {
-    fontSize: 11,
-    color: '#666',
-    marginBottom: 8,
+    fontSize: 9,
+    color: '#4CAF50',
+    marginBottom: 6,
   },
   addButton: {
-    backgroundColor: '#F8C400',
-    padding: 8,
+    backgroundColor: '#4CAF50',
     borderRadius: 4,
+    paddingVertical: 3,
     alignItems: 'center',
-    marginTop: 8,
   },
   addButtonText: {
-    color: '#000',
-    fontWeight: 'bold',
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 10,
   },
-  // Notification styles
+  quantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 4,
+    padding: 2,
+  },
+  quantityButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    lineHeight: 16,
+  },
+  quantity: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 6,
+  },
   notification: {
     position: 'absolute',
     bottom: 20,

@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "quickkart",
     "plugins": [
       [
         "expo-location",
@@ -15,13 +16,23 @@
         }
       ]
     ],
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8C400"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.quickkart.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow QuickKart to use your location for delivery tracking.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow QuickKart to use your location for delivery tracking.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow QuickKart to use your location for tracking.",
+        "UIBackgroundModes": ["location", "fetch"],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["quickkart"]
+          }
+        ]
       }
     },
     "android": {
@@ -30,6 +41,19 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.quickkart.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "quickkart",
+              "host": "admin"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -38,7 +62,14 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "rewrites": [
+        {
+          "source": "/admin/**",
+          "destination": "/"
+        }
+      ]
     }
   }
 }
