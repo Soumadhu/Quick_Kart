@@ -1,15 +1,26 @@
-import React, { useEffect } from 'react';
-import { Text, View, Linking, Platform, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Text, View, TouchableOpacity, Linking, Platform, ActivityIndicator, StyleSheet, LogBox } from 'react-native';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { BannersProvider } from './context/BannersContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import { subscribeToCartUpdates, getCart } from './shared/cartService';
+
+// Ignore specific warnings
+LogBox.ignoreLogs([
+  'ViewPropTypes will be removed',
+  'VirtualizedLists should never be nested',
+  'Require cycle:',
+]);
 
 // Screens
 import SplashScreen from './screens/SplashScreen';
 import RoleSelectionScreen from './screens/RoleSelectionScreen';
-import HomeScreen from './screens/HomeScreen';
+import BlinkitHomeScreen from './screens/BlinkitHomeScreen';
 import CategoriesScreen from './screens/CategoriesScreen';
 import ProductDetailsScreen from './screens/ProductDetailsScreen';
 import CartScreen from './screens/CartScreen';
@@ -22,6 +33,8 @@ import OrderConfirmationScreen from './screens/OrderConfirmationScreen';
 import RiderLoginScreen from './screens/rider/RiderLoginScreen';
 import RiderTabs from './navigation/RiderTabs';
 import AdminPanel from './screens/admin/AdminPanel';
+import DarkStore from './screens/admin/DarkStore';
+import HomeContentManager from './screens/admin/HomeContentManager';
 import LoginScreen from './app/screens/LoginScreen';
 import RegisterScreen from './app/screens/RegisterScreen';
 
@@ -30,91 +43,141 @@ const Tab = createBottomTabNavigator();
 
 function HomeTabs() {
   const { user } = useAuth();
+  const navigation = useNavigation();
   const isLoggedIn = !!user;
+  const [cartCount, setCartCount] = useState(0);
   
+  // Subscribe to cart updates
+  useEffect(() => {
+    // Initial cart count
+    const updateCartCount = (cart) => {
+      const count = cart.reduce((total, item) => total + (item.quantity || 1), 0);
+      setCartCount(count);
+    };
+    
+    // Get initial cart
+    updateCartCount(getCart());
+    
+    // Subscribe to cart updates
+    const unsubscribe = subscribeToCartUpdates(updateCartCount);
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+    
+  }, [getCart, subscribeToCartUpdates]);
+  
+  const headerRight = () => (
+    <TouchableOpacity 
+      style={styles.headerButton} 
+      onPress={() => navigation.navigate('Checkout')}
+    >
+      <Ionicons name="cart" size={24} color="#007AFF" />
+      {cartCount > 0 && (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {cartCount > 9 ? '9+' : cartCount}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
   return (
     <Tab.Navigator
-      screenOptions={{
-        tabBarActiveTintColor: '#4CAF50',
+      screenOptions={({ route }) => ({
+        headerRight: route.name === 'HomeTab' ? headerRight : undefined,
+        tabBarActiveTintColor: '#0C831F', // Blinkit green
         tabBarInactiveTintColor: '#666',
         headerShown: false,
+        tabBarShowLabel: false, // Hide default labels
         tabBarStyle: {
-          height: 48,
-          paddingBottom: 4,
-          paddingTop: 4,
-          backgroundColor: 'white',
+          height: 60,
           borderTopWidth: 0,
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          backgroundColor: '#fff',
+          paddingBottom: 8,
           position: 'absolute',
-          bottom: 30,
+          bottom: 20,
           left: 20,
           right: 20,
           borderRadius: 12,
-          elevation: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.15,
-          shadowRadius: 6,
-          borderWidth: 1,
-          borderColor: 'rgba(0,0,0,0.05)',
         },
-        tabBarItemStyle: {
-          paddingVertical: 0,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          marginBottom: 2,
-          marginTop: -2,
-        },
-        tabBarIconStyle: {
-          marginTop: 4,
-        },
-        tabBarActiveTintColor: '#4CAF50',
-        tabBarInactiveTint: '#888',
-      }}
+      })}
     >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
+      <Tab.Screen 
+        name="HomeTab" 
+        component={BlinkitHomeScreen} 
         options={{
-          tabBarLabel: ({ focused, color }) => (
-            <Text style={{ color, fontSize: 12, marginBottom: 5 }}>Home</Text>
-          ),
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color, size }) => (
             <View style={styles.tabIconContainer}>
-              <Text style={[styles.tabIcon, { color }]}>🏠</Text>
+              <Ionicons name="home-outline" size={24} color={color} />
+              <Text style={[styles.tabBarLabel, { color }]}>Home</Text>
             </View>
           ),
         }}
       />
-      <Tab.Screen
-        name="Cart"
-        component={CartScreen}
+      <Tab.Screen 
+        name="CategoriesTab" 
+        component={CategoriesScreen} 
         options={{
-          tabBarLabel: ({ focused, color }) => (
-            <Text style={{ color, fontSize: 12, marginBottom: 5 }}>Cart</Text>
-          ),
           tabBarIcon: ({ color }) => (
             <View style={styles.tabIconContainer}>
-              <Text style={[styles.tabIcon, { color }]}>🛒</Text>
-              {isLoggedIn && (
+              <Ionicons name="grid-outline" size={24} color={color} />
+              <Text style={[styles.tabBarLabel, { color }]}>Categories</Text>
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="CheckoutTab" 
+        component={CheckoutScreen} 
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Checkout');
+          },
+        })}
+        options={{
+          tabBarIcon: ({ color }) => (
+            <View style={styles.tabIconContainer}>
+              <Ionicons name="cart-outline" size={24} color={color} />
+              <Text style={[styles.tabBarLabel, { color }]}>Checkout</Text>
+              {cartCount > 0 && (
                 <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>0</Text>
+                  <Text style={styles.cartBadgeText}>
+                    {cartCount > 9 ? '9+' : cartCount}
+                  </Text>
                 </View>
               )}
             </View>
           ),
         }}
       />
-      <Tab.Screen
-        name="Orders"
-        component={OrdersScreen}
+      <Tab.Screen 
+        name="OrdersTab" 
+        component={OrdersScreen} 
         options={{
-          tabBarLabel: ({ focused, color }) => (
-            <Text style={{ color, fontSize: 12, marginBottom: 5 }}>Orders</Text>
-          ),
           tabBarIcon: ({ color }) => (
             <View style={styles.tabIconContainer}>
-              <Text style={[styles.tabIcon, { color }]}>📦</Text>
+              <Ionicons name="receipt-outline" size={24} color={color} />
+              <Text style={[styles.tabBarLabel, { color }]}>Orders</Text>
+            </View>
+          ),
+        }}
+      />
+      <Tab.Screen 
+        name="AccountTab" 
+        component={UserProfileScreen} 
+        options={{
+          tabBarIcon: ({ color }) => (
+            <View style={styles.tabIconContainer}>
+              <Ionicons name="person-outline" size={24} color={color} />
+              <Text style={[styles.tabBarLabel, { color }]}>Account</Text>
             </View>
           ),
         }}
@@ -122,34 +185,6 @@ function HomeTabs() {
     </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  tabIconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-    position: 'relative',
-  },
-  tabIcon: {
-    fontSize: 22,
-  },
-  cartBadge: {
-    position: 'absolute',
-    right: -8,
-    top: -3,
-    backgroundColor: '#FF3B30',
-    borderRadius: 9,
-    width: 18,
-    height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartBadgeText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-});
 
 function Navigation() {
   const navigation = useNavigation();
@@ -234,20 +269,25 @@ function Navigation() {
         }}
       />
       <Stack.Screen 
+        name="Main" 
+        component={HomeTabs}
+        options={{
+          headerShown: false,
+          gestureEnabled: false
+        }}
+      />
+      <Stack.Screen 
         name="HomeTabs" 
         component={HomeTabs} 
         options={{
-          headerShown: true,
-          headerTransparent: true,
-          headerTitle: '',
-          headerTintColor: '#000',
+          headerShown: false,
+          gestureEnabled: false,
           headerStyle: {
             backgroundColor: 'transparent',
             elevation: 0,
             shadowOpacity: 0,
             borderBottomWidth: 0,
-          },
-          gestureEnabled: false
+          }
         }}
       />
       <Stack.Screen 
@@ -259,6 +299,11 @@ function Navigation() {
         name="ProductDetails" 
         component={ProductDetailsScreen} 
         options={{ headerTitle: 'Product Details' }}
+      />
+      <Stack.Screen 
+        name="Cart" 
+        component={CartScreen} 
+        options={{ headerTitle: 'My Cart' }}
       />
       <Stack.Screen 
         name="Checkout" 
@@ -306,6 +351,22 @@ function Navigation() {
         }}
       />
       <Stack.Screen 
+        name="HomeContentManager" 
+        component={HomeContentManager}
+        options={{ 
+          title: 'Manage Home Content',
+          headerShown: true
+        }}
+      />
+      <Stack.Screen 
+        name="DarkStore" 
+        component={DarkStore}
+        options={{ 
+          title: 'Dark Store',
+          headerShown: true
+        }}
+      />
+      <Stack.Screen 
         name="RiderTabs" 
         component={RiderTabs} 
         options={{ 
@@ -331,20 +392,59 @@ const linking = {
   },
 };
 
+const styles = StyleSheet.create({
+  tabIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 4,
+  },
+  tabBarLabel: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  cartBadge: {
+    position: 'absolute',
+    right: -8,
+    top: -4,
+    backgroundColor: '#FF3B30',
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  tabIcon: {
+    fontSize: 24,
+  },
+});
+
 export default function App() {
+  console.log('App component rendering');
+  
   return (
     <AuthProvider>
-      <NavigationContainer 
-        linking={linking}
-        fallback={
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#F8C400" />
-          </View>
-        }
-      >
-        <StatusBar style="light" />
-        <Navigation />
-      </NavigationContainer>
+      <BannersProvider>
+        <NavigationContainer 
+          linking={linking} 
+          fallback={<SplashScreen />}
+          onStateChange={(state) => console.log('Navigation state changed')}
+          onError={(error) => {
+            console.error('Navigation error:', error);
+          }}
+        >
+          <StatusBar style="auto" />
+          <ErrorBoundary>
+            <View style={{ flex: 1, backgroundColor: 'white' }}>
+              <Navigation />
+            </View>
+          </ErrorBoundary>
+        </NavigationContainer>
+      </BannersProvider>
     </AuthProvider>
   );
 }

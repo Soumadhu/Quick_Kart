@@ -1,3 +1,4 @@
+// Categories data
 export const categories = [
   { id: '1', name: 'Vegetables & Fruits', icon: '🥬', color: '#22C55E' },
   { id: '2', name: 'Dairy & Breakfast', icon: '🥛', color: '#3B82F6' },
@@ -9,6 +10,7 @@ export const categories = [
   { id: '8', name: 'Personal Care', icon: '🧴', color: '#10B981' },
 ];
 
+// Products data
 export let products = [
   {
     id: '1',
@@ -108,6 +110,7 @@ export let products = [
   },
 ];
 
+// Users data
 export const users = [
   {
     id: '1',
@@ -135,6 +138,7 @@ export const users = [
   },
 ];
 
+// Orders data
 export let orders = [
   {
     id: 'ORD001',
@@ -177,32 +181,153 @@ export let orders = [
   },
 ];
 
-export let cart = [];
+// Cart management
+let cart = [];
+let cartUpdateListeners = [];
 
-export const addToCart = (product, quantity = 1) => {
-  const existingItem = cart.find(item => item.id === product.id);
-  if (existingItem) {
-    existingItem.quantity += quantity;
+/**
+ * Notify all listeners about cart updates
+ * @param {Array} updatedCart - Optional updated cart, uses current cart if not provided
+ */
+const notifyCartUpdate = (updatedCart = null) => {
+  const cartCopy = updatedCart ? JSON.parse(JSON.stringify(updatedCart)) : JSON.parse(JSON.stringify(cart));
+  
+  cartUpdateListeners.forEach(listener => {
+    try {
+      if (typeof listener === 'function') {
+        listener(JSON.parse(JSON.stringify(cartCopy)));
+      }
+    } catch (err) {
+      console.error('Error in cart update listener:', err);
+    }
+  });
+};
+
+/**
+ * Get current cart
+ * @returns {Array} Deep copy of current cart
+ */
+export const getCart = () => {
+  return JSON.parse(JSON.stringify(cart));
+};
+
+/**
+ * Add item to cart or update quantity if already exists
+ * @param {Object} item - Product to add
+ * @param {number} quantity - Quantity to add (default: 1)
+ */
+export const addToCart = (item, quantity = 1) => {
+  if (!item?.id) {
+    console.error('Invalid item:', item);
+    return;
+  }
+
+  const updatedCart = [...cart];
+  const productId = item.id;
+  const existingItemIndex = updatedCart.findIndex(cartItem => 
+    cartItem.id === productId || 
+    (cartItem.product && cartItem.product.id === productId)
+  );
+
+  if (existingItemIndex >= 0) {
+    const existingItem = updatedCart[existingItemIndex];
+    updatedCart[existingItemIndex] = {
+      ...existingItem,
+      quantity: (existingItem.quantity || 1) + (quantity || 1),
+      product: existingItem.product ? { ...existingItem.product } : { ...item }
+    };
   } else {
-    cart.push({ ...product, quantity });
+    updatedCart.push({
+      ...item,
+      id: productId,
+      quantity: Math.max(1, quantity || 1),
+      addedAt: new Date().toISOString(),
+      product: item.product ? { ...item.product } : { ...item }
+    });
   }
+
+  cart = updatedCart;
+  notifyCartUpdate();
 };
 
+/**
+ * Remove item from cart
+ * @param {string} productId - ID of the product to remove
+ */
 export const removeFromCart = (productId) => {
-  cart = cart.filter(item => item.id !== productId);
+  cart = cart.filter(item => 
+    item.id !== productId && 
+    (!item.product || item.product.id !== productId)
+  );
+  notifyCartUpdate();
 };
 
+/**
+ * Update quantity of an item in the cart
+ * @param {string} productId - ID of the product to update
+ * @param {number} quantity - New quantity
+ * @returns {Array} Updated cart
+ */
 export const updateCartQuantity = (productId, quantity) => {
-  const item = cart.find(item => item.id === productId);
-  if (item) {
-    item.quantity = quantity;
+  if (quantity <= 0) {
+    removeFromCart(productId);
+    return getCart();
   }
+
+  const updatedCart = [...cart];
+  const itemIndex = updatedCart.findIndex(item => 
+    item.id === productId || 
+    (item.product && item.product.id === productId)
+  );
+
+  if (itemIndex >= 0) {
+    const existingItem = updatedCart[itemIndex];
+    updatedCart[itemIndex] = {
+      ...existingItem,
+      quantity: quantity,
+      product: existingItem.product ? { ...existingItem.product } : undefined
+    };
+    
+    cart = updatedCart;
+    notifyCartUpdate();
+  }
+
+  return getCart();
 };
 
+/**
+ * Clear the cart
+ */
 export const clearCart = () => {
   cart = [];
+  notifyCartUpdate();
 };
 
+/**
+ * Subscribe to cart updates
+ * @param {Function} callback - Function to call when cart updates
+ * @returns {Function} Unsubscribe function
+ */
+export const subscribeToCartUpdates = (callback) => {
+  if (typeof callback !== 'function') {
+    console.error('Callback must be a function');
+    return () => {};
+  }
+
+  cartUpdateListeners.push(callback);
+  
+  try {
+    callback(getCart());
+  } catch (err) {
+    console.error('Error in cart subscription callback:', err);
+  }
+  
+  return () => {
+    cartUpdateListeners = cartUpdateListeners.filter(cb => cb !== callback);
+  };
+};
+
+// Product management
 export const addProduct = (product) => {
   products.push({ ...product, id: String(products.length + 1) });
 };
@@ -218,6 +343,7 @@ export const deleteProduct = (id) => {
   products = products.filter(p => p.id !== id);
 };
 
+// Order management
 export const updateOrderStatus = (orderId, status) => {
   const order = orders.find(o => o.id === orderId);
   if (order) {

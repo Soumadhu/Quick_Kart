@@ -1,52 +1,58 @@
-const { Pool } = require('pg');
+const knex = require('knex');
+const path = require('path');
 require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Database connection configuration
-const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'quickkart',
-  password: process.env.DB_PASSWORD || 'postgres',
-  port: process.env.DB_PORT || 5432,
-  ssl: isProduction ? { rejectUnauthorized: false } : false,
-});
+// Database configuration
+const config = {
+  client: 'sqlite3',
+  connection: {
+    filename: path.join(__dirname, '../../data/quickkart.sqlite3')
+  },
+  useNullAsDefault: true,
+  migrations: {
+    directory: path.join(__dirname, '../database/migrations')
+  },
+  seeds: {
+    directory: path.join(__dirname, '../database/seeds')
+  },
+  pool: {
+    afterCreate: (conn, cb) => {
+      // Enable foreign key constraints
+      conn.run('PRAGMA foreign_keys = ON', cb);
+    }
+  }
+};
+
+// Create database instance
+const db = knex(config);
 
 // Test the database connection
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('Error connecting to the database', err.stack);
-  } else {
-    console.log('Successfully connected to the database');
-  }
-});
+db.raw('SELECT 1+1 as result')
+  .then(() => {
+    console.log('Successfully connected to SQLite database');
+  })
+  .catch(err => {
+    console.error('Error connecting to the database', err);
+  });
 
 module.exports = {
-  query: (text, params) => pool.query(text, params),
-  getClient: async () => {
-    const client = await pool.connect();
-    const query = client.query;
-    const release = client.release;
-    
-    // Set a timeout of 5 seconds
-    const timeout = setTimeout(() => {
-      console.error('A client has been checked out for more than 5 seconds!');
-    }, 5000);
-
-    // Monkey patch the query method to keep track of the last query executed
-    client.query = (...args) => {
-      client.lastQuery = args;
-      return query.apply(client, args);
-    };
-
-    client.release = () => {
-      clearTimeout(timeout);
-      client.query = query;
-      client.release = release;
-      return release.apply(client);
-    };
-
-    return client;
+  // Raw query helper
+  query: (text, params) => {
+    return db.raw(text, params || []);
   },
+  
+  // Get a transaction
+  transaction: () => {
+    return db.transaction();
+  },
+  
+  // Get the Knex instance for query building
+  knex: () => db,
+  
+  // Close the database connection (for graceful shutdown)
+  close: () => {
+    return db.destroy();
+  }
 };

@@ -17,7 +17,10 @@ const RoleSelectionScreen = () => {
         {/* Customer Card */}
         <TouchableOpacity 
           style={[styles.roleCard, styles.customerCard]}
-          onPress={() => navigation.navigate('HomeTabs')}
+          onPress={() => {
+            // Navigate to HomeTabs which contains BlinkitHomeScreen as the home tab
+            navigation.navigate('HomeTabs');
+          }}
         >
           <View style={styles.roleIconContainer}>
             <Icon name="person" size={40} color="#1976D2" />
