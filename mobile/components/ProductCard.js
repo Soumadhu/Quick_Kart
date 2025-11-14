@@ -71,12 +71,18 @@ const ProductCard = ({
       activeOpacity={0.9}
     >
       <View style={styles.imageContainer}>
-        <Image 
-          source={{ uri: product.imageUrl || product.image }} 
-          style={styles.productImage}
-          resizeMode="contain"
-          onError={(error) => console.log('Image load error:', error.nativeEvent.error, 'URI:', product.imageUrl || product.image)}
-        />
+        {product.image_url || product.imageUrl || product.image ? (
+          <Image 
+            source={{ uri: product.image_url || product.imageUrl || product.image }} 
+            style={styles.productImage}
+            resizeMode="contain"
+            onError={(error) => console.log('Image load error:', error.nativeEvent.error, 'URI:', product.image_url || product.imageUrl || product.image)}
+          />
+        ) : (
+          <View style={[styles.productImage, styles.placeholderImage]}>
+            <Text style={styles.placeholderText}>No Image</Text>
+          </View>
+        )}
         {product.discount && (
           <View style={styles.discountBadge}>
             <Text style={styles.discountText}>{product.discount}% OFF</Text>
@@ -141,6 +147,16 @@ const styles = StyleSheet.create({
   productImage: {
     width: '80%',
     height: '80%',
+  },
+  placeholderImage: {
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  placeholderText: {
+    color: '#999',
+    fontSize: 12,
   },
   discountBadge: {
     position: 'absolute',
