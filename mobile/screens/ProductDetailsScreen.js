@@ -1,14 +1,93 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { getProduct } from '../src/services/productService';
 
 export default function ProductDetailsScreen({ route, navigation }) {
-  const { product } = route.params;
+  const { productId, product: initialProduct } = route.params;
+  const [product, setProduct] = useState(initialProduct);
   const [quantity, setQuantity] = useState(1);
+  const [loading, setLoading] = useState(!initialProduct);
+  const [error, setError] = useState(null);
+
+  // Process image URL to handle blob URLs and other formats
+  const getImageSource = (url) => {
+    if (!url) return null;
+    
+    // If it's a blob URL, return it as is
+    if (url.startsWith('blob:')) {
+      return { uri: url };
+    }
+    
+    // If it's a relative path, prepend the base URL
+    if (!url.startsWith('http') && !url.startsWith('file:')) {
+      // You might want to add your API base URL here if needed
+      // return { uri: `http://your-api-base-url/${url}` };
+      return { uri: url };
+    }
+    
+    return { uri: url };
+  };
+
+  // Fetch product details if not provided
+  useEffect(() => {
+    if (!initialProduct && productId) {
+      const fetchProduct = async () => {
+        try {
+          setLoading(true);
+          const productData = await getProduct(productId);
+          // Ensure we have a valid image URL
+          if (productData && !productData.image_url) {
+            productData.image_url = null; // Set to null if no image URL
+          }
+          setProduct(productData);
+        } catch (err) {
+          console.error('Error fetching product:', err);
+          setError('Failed to load product details');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchProduct();
+    }
+  }, [productId, initialProduct]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#0C831F" />
+      </View>
+    );
+  }
+
+  if (error || !product) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Text style={styles.errorText}>{error || 'Product not found'}</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.imageContainer}>
-        <Text style={styles.productImage}>{product.image}</Text>
+        {product.image_url ? (
+          <Image 
+            source={getImageSource(product.image_url)}
+            style={styles.productImage}
+            resizeMode="contain"
+            onError={(e) => {
+              console.log('Failed to load image:', e.nativeEvent.error);
+              // If image fails to load, set image_url to null to show placeholder
+              setProduct(prev => ({ ...prev, image_url: null }));
+            }}
+            onLoadStart={() => console.log('Starting to load image:', product.image_url)}
+            onLoadEnd={() => console.log('Finished loading image')}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <Text style={styles.placeholderText}>No Image Available</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -72,10 +151,18 @@ export default function ProductDetailsScreen({ route, navigation }) {
         <TouchableOpacity
           style={styles.addToCartButton}
           onPress={() => {
-            navigation.navigate('Cart');
+            // Navigate to Checkout screen with the product and quantity
+            navigation.navigate('Checkout', {
+              items: [{
+                ...product,
+                quantity: quantity,
+                total: product.price * quantity
+              }],
+              total: product.price * quantity
+            });
           }}
         >
-          <Text style={styles.addToCartText}>Add to Cart</Text>
+          <Text style={styles.addToCartText}>Proceed to Checkout</Text>
           <Text style={styles.addToCartPrice}>₹{product.price * quantity}</Text>
         </TouchableOpacity>
       </View>
@@ -88,6 +175,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 16,
+    textAlign: 'center',
+    margin: 20,
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#999',
+    fontSize: 16,
+  },
   imageContainer: {
     backgroundColor: '#f9f9f9',
     alignItems: 'center',
@@ -95,7 +203,16 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   productImage: {
-    fontSize: 120,
+    width: '100%',
+    height: 300,
+    resizeMode: 'contain',
+    backgroundColor: '#f5f5f5',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    margin: 10,
+    fontSize: 14,
   },
   content: {
     padding: 16,

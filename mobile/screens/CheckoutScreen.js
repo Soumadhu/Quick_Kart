@@ -78,7 +78,7 @@ const CheckoutScreen = ({ navigation }) => {
         <Text style={styles.emptyText}>Your cart is empty</Text>
         <TouchableOpacity 
           style={styles.continueShoppingButton}
-          onPress={() => navigation.navigate('Home')}
+          onPress={() => navigation.navigate('HomeTabs')}
         >
           <Text style={styles.continueShoppingText}>Continue Shopping</Text>
         </TouchableOpacity>

@@ -105,10 +105,10 @@ export const addToCart = (product, quantity = 1) => {
       const updatedCart = [...currentCart];
       
       if (existingItemIndex >= 0) {
-        // Update existing item
+        // Update existing item - use the exact quantity passed in instead of adding to existing
         updatedCart[existingItemIndex] = {
           ...updatedCart[existingItemIndex],
-          quantity: (updatedCart[existingItemIndex].quantity || 1) + quantity
+          quantity: quantity
         };
       } else {
         // Add new item
