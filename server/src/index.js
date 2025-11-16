@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const db = require('./config/db');
 const productRoutes = require('./routes/productRoutes');
+const createCategoryRoutes = require('./routes/api/categories');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -41,6 +42,7 @@ app.get('/test-upload', (req, res) => {
 // API Routes
 const apiRouter = express.Router();
 apiRouter.use('/products', productRoutes);
+apiRouter.use('/categories', createCategoryRoutes(db.knex()));
 app.use('/api', apiRouter);
 
 // List files in uploads directory
@@ -68,6 +70,7 @@ app.get('/list-uploads', (req, res) => {
 });
 
 // Error handling middleware for file uploads
+const multer = require('multer');
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     // A Multer error occurred when uploading

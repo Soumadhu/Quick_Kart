@@ -4,7 +4,7 @@ const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 // Database file path
-const DB_PATH = path.join(__dirname, '../../data/quickkart.db');
+const DB_PATH = path.join(__dirname, '../../data/quickkart.sqlite3');
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, '../../data');

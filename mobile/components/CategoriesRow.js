@@ -1,5 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+  Image,
+  ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -12,8 +21,18 @@ const CategoriesRow = ({ categories = [], onCategoryPress }) => {
       onPress={() => onCategoryPress(item)}
       activeOpacity={0.8}
     >
-      <View style={styles.categoryIconContainer}>
-        <Ionicons name={item.icon} size={24} color="#51CC5E" />
+      <View style={styles.categoryImageContainer}>
+        {item.imageUrl ? (
+          <Image 
+            source={{ uri: item.imageUrl }} 
+            style={styles.categoryImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.categoryPlaceholder}>
+            <Ionicons name="grid" size={24} color="#9CA3AF" />
+          </View>
+        )}
       </View>
       <Text style={styles.categoryName} numberOfLines={2}>
         {item.name}
@@ -47,14 +66,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 16,
   },
-  categoryIconContainer: {
+  categoryImageContainer: {
     width: CATEGORY_SIZE * 0.6,
     height: CATEGORY_SIZE * 0.6,
-    borderRadius: (CATEGORY_SIZE * 0.6) / 2,
+    borderRadius: 12,
     backgroundColor: '#F2FFF3',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+    overflow: 'hidden',
+  },
+  categoryImage: {
+    width: '100%',
+    height: '100%',
+  },
+  categoryPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   categoryName: {
     fontSize: 12,

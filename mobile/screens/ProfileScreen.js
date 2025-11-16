@@ -1,9 +1,41 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { users } from '../shared/mockData';
+import { updateUser, getUserById } from '../src/services/userService';
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(users[0]);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editedUser, setEditedUser] = useState({
+    name: user.name,
+    phone: user.phone,
+    email: user.email
+  });
+
+  // Load user data from database on component mount
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      console.log('Loading user data from database...');
+      const userData = await getUserById('1');
+      if (userData) {
+        console.log('User data found in database:', userData);
+        setUser(userData);
+        setEditedUser({
+          name: userData.name,
+          phone: userData.phone,
+          email: userData.email
+        });
+      } else {
+        console.log('No user data found in database, using mock data');
+      }
+    } catch (error) {
+      console.error('Error loading user data from database:', error);
+    }
+  };
 
   const handleSaveAddress = (updatedAddress) => {
     setUser(prevUser => {
@@ -52,15 +84,175 @@ export default function ProfileScreen({ navigation }) {
     });
   };
 
+  const handleEditProfile = () => {
+    setIsEditingProfile(true);
+    setEditedUser({
+      name: user.name,
+      phone: user.phone,
+      email: user.email
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    console.log('handleSaveProfile called');
+    console.log('Current user state:', user);
+    console.log('Edited user state:', editedUser);
+    
+    // Validate inputs
+    if (!editedUser.name.trim()) {
+      Alert.alert('Error', 'Name is required');
+      return;
+    }
+    
+    if (!editedUser.phone.trim()) {
+      Alert.alert('Error', 'Phone number is required');
+      return;
+    }
+
+    if (!editedUser.email.trim()) {
+      Alert.alert('Error', 'Email is required');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editedUser.email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    try {
+      // Prepare updated user data
+      const updatedUserData = {
+        id: user.id || '1', // Use existing ID or default to '1'
+        name: editedUser.name.trim(),
+        phone: editedUser.phone.trim(),
+        email: editedUser.email.trim(),
+        avatar: user.avatar || null
+      };
+
+      console.log('Prepared user data for database:', updatedUserData);
+
+      // Save to database
+      const savedUser = await updateUser(updatedUserData);
+      console.log('User saved to database:', savedUser);
+      
+      // Update local state
+      setUser(prevUser => ({
+        ...prevUser,
+        ...updatedUserData
+      }));
+      
+      console.log('Local state updated');
+      setIsEditingProfile(false);
+      Alert.alert('Success', 'Profile updated successfully and saved to database');
+    } catch (error) {
+      console.error('Error saving profile to database:', error);
+      Alert.alert('Error', `Failed to save profile to database: ${error.message}`);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setEditedUser({
+      name: user.name,
+      phone: user.phone,
+      email: user.email
+    });
+  };
+
+  // Test function to verify database operations
+  const testDatabase = async () => {
+    try {
+      console.log('Testing database operations...');
+      
+      // Test 1: Save a test user
+      const testUser = {
+        id: 'test1',
+        name: 'Test User',
+        phone: '1234567890',
+        email: 'test@example.com'
+      };
+      
+      console.log('Saving test user...');
+      await updateUser(testUser);
+      console.log('Test user saved successfully');
+      
+      // Test 2: Retrieve the user
+      console.log('Retrieving test user...');
+      const retrievedUser = await getUserById('test1');
+      console.log('Retrieved user:', retrievedUser);
+      
+      // Test 3: Update the user
+      console.log('Updating test user...');
+      const updatedUser = {
+        ...testUser,
+        name: 'Updated Test User'
+      };
+      await updateUser(updatedUser);
+      console.log('Test user updated successfully');
+      
+      // Test 4: Verify the update
+      console.log('Verifying update...');
+      const finalUser = await getUserById('test1');
+      console.log('Final user after update:', finalUser);
+      
+      Alert.alert('Database Test', 'Database operations completed successfully! Check console for details.');
+    } catch (error) {
+      console.error('Database test failed:', error);
+      Alert.alert('Database Test Failed', error.message);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{user.name.charAt(0)}</Text>
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{(isEditingProfile ? editedUser.name : user.name).charAt(0).toUpperCase()}</Text>
+          </View>
+          <TouchableOpacity style={styles.editProfileButton} onPress={isEditingProfile ? handleSaveProfile : handleEditProfile}>
+            <Text style={styles.editProfileButtonText}>{isEditingProfile ? 'Save' : 'Edit'}</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.contact}>{user.phone}</Text>
-        <Text style={styles.email}>{user.email}</Text>
+        
+        {isEditingProfile ? (
+          <View style={styles.editFieldsContainer}>
+            <TextInput
+              style={styles.editInput}
+              value={editedUser.name}
+              onChangeText={(text) => setEditedUser(prev => ({ ...prev, name: text }))}
+              placeholder="Name"
+              placeholderTextColor="#999"
+            />
+            <TextInput
+              style={styles.editInput}
+              value={editedUser.phone}
+              onChangeText={(text) => setEditedUser(prev => ({ ...prev, phone: text }))}
+              placeholder="Phone"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+            />
+            <TextInput
+              style={styles.editInput}
+              value={editedUser.email}
+              onChangeText={(text) => setEditedUser(prev => ({ ...prev, email: text }))}
+              placeholder="Email"
+              placeholderTextColor="#999"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancelEdit}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View>
+            <Text style={styles.name}>{user.name}</Text>
+            <Text style={styles.contact}>{user.phone}</Text>
+            <Text style={styles.email}>{user.email}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -124,6 +316,9 @@ export default function ProfileScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      <TouchableOpacity style={styles.logoutButton} onPress={testDatabase}>
+        <Text style={styles.logoutText}>Test Database</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.logoutButton}>
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
@@ -267,5 +462,49 @@ const styles = StyleSheet.create({
     color: '#ff4444',
     fontWeight: '600',
     fontSize: 16,
+  },
+  avatarContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  editProfileButton: {
+    backgroundColor: '#F8C400',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  editProfileButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  editFieldsContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  editInput: {
+    width: '100%',
+    height: 44,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  cancelButton: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#999',
+  },
+  cancelButtonText: {
+    color: '#999',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

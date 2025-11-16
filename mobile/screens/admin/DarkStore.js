@@ -209,7 +209,19 @@ const DarkStore = () => {
       await loadProducts();
 
       // Show success message
-      Alert.alert('Success', 'Product added successfully!');
+      Alert.alert(
+        'Success', 
+        'Product added successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate back to home screen
+              navigation.goBack();
+            }
+          }
+        ]
+      );
     } catch (error) {
       console.error('Error in handleSubmit:', {
         error: error.message,
@@ -319,6 +331,16 @@ const DarkStore = () => {
         } 
         // Handle remote URLs
         else if (imageUrl.startsWith('http')) {
+          // Check for placeholder URLs that might fail
+          if (imageUrl.includes('via.placeholder.com') || imageUrl.includes('placeholder.com')) {
+            console.log('Placeholder URL detected, using fallback placeholder');
+            return (
+              <View style={[styles.productImage, styles.productImagePlaceholder]}>
+                <Ionicons name="image" size={32} color="#9CA3AF" />
+              </View>
+            );
+          }
+          
           // Clean up any duplicate base URLs
           const baseUrls = [
             'http://localhost:5000',
@@ -365,6 +387,8 @@ const DarkStore = () => {
           onError={(error) => {
             console.log('Image load error:', error.nativeEvent.error);
             console.log('Failed to load image from:', item.image_url);
+            // Note: In React Native, you can't dynamically replace the Image component
+            // The placeholder will be shown on next render if needed
           }}
         />
       );
