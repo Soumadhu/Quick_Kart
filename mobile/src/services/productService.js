@@ -56,7 +56,7 @@ const API_BASE_URL = getApiBaseUrl();
 
 // Helper function to fix image URLs
 const fixImageUrl = (url) => {
-  if (!url) return null;
+  if (!url || url === null || url === 'undefined') return null;
   
   try {
     // Handle case where URL is already correct
@@ -97,7 +97,7 @@ const fixImageUrl = (url) => {
       originalUrl: url, 
       error: e.message 
     });
-    return 'https://via.placeholder.com/150';
+    return null; // Return null so ProductCard can show its own placeholder
   }
 };
 
@@ -216,7 +216,7 @@ export const saveProductWithImage = async (product, imageUri) => {
     }
 
     console.log('Sending request to server...');
-    const response = await fetch(`${API_BASE_URL}/api/products`, {
+    const response = await fetch(`${API_BASE_URL}/products`, {
       method: 'POST',
       body: formData,
       headers: {
@@ -332,31 +332,41 @@ export const getProducts = async () => {
               // If the URL is still not valid, use a placeholder
               if (!imageUrl || imageUrl === 'null' || imageUrl === 'undefined' || !imageUrl.startsWith('http')) {
                 console.log(`[API] Using placeholder for product ${product.id}, URL was:`, imageUrl);
-                imageUrl = 'https://via.placeholder.com/150';
+                imageUrl = null; // Use null so ProductCard can show its own placeholder
               }
               
-              // Clean up any remaining double slashes
-              imageUrl = imageUrl.replace(/([^:]\/)\/+/g, '$1');
+              // Generate rating if not present
+              let rating = product.rating;
+              if (!rating || typeof rating !== 'number') {
+                // Generate a random rating between 3.5 and 5.0 based on product ID for consistency
+                const idString = String(product.id || '');
+                const seed = idString.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+                rating = 3.5 + (seed % 15) / 10; // This gives us values from 3.5 to 4.9
+                rating = Math.round(rating * 10) / 10; // Round to 1 decimal place
+                console.log(`[API] Generated rating ${rating} for product ${product.id}`);
+              }
               
-              // Return the product with the processed image URL
+              // Return the product with the processed image URL and rating
               return {
                 ...product,
                 image_url: imageUrl,
                 original_price: product.originalPrice || product.original_price,
                 delivery_time: product.deliveryTime || product.delivery_time || '30-45 min',
+                rating: rating,
               };
               
             } catch (error) {
               console.error('Error processing product image URL:', { 
                 productId: product.id, 
                 error: error.message,
+                imageUrl: imageUrl,
                 product: JSON.stringify(product, null, 2)
               });
               
-              // Return product with placeholder image if there was an error
+              // Return product with null image_url to prevent crashes
               return {
                 ...product,
-                image_url: 'https://via.placeholder.com/150',
+                image_url: null,
                 original_price: product.originalPrice || product.original_price,
                 delivery_time: product.deliveryTime || product.delivery_time || '30-45 min',
               };
@@ -405,7 +415,22 @@ export const getProducts = async () => {
           const cachedProducts = await AsyncStorage.getItem('cachedProducts');
           if (cachedProducts) {
             console.log('[API] Using cached products after error:', error.message);
-            return JSON.parse(cachedProducts);
+            const parsedProducts = JSON.parse(cachedProducts);
+            
+            // Ensure cached products have ratings
+            const processedCachedProducts = parsedProducts.map(product => {
+              let rating = product.rating;
+              if (!rating || typeof rating !== 'number') {
+                const idString = String(product.id || '');
+                const seed = idString.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+                rating = 3.5 + (seed % 15) / 10;
+                rating = Math.round(rating * 10) / 10;
+                console.log(`[API] Generated rating ${rating} for cached product ${product.id}`);
+              }
+              return { ...product, rating };
+            });
+            
+            return processedCachedProducts;
           }
         } catch (cacheError) {
           console.error('Error loading cached products:', cacheError);

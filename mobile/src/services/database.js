@@ -62,10 +62,31 @@ export const initDatabase = async () => {
           [],
           () => {
             log('Products table created successfully');
-            resolve();
           },
           (_, error) => {
             log('Error creating products table:', error);
+            reject(error);
+            return true;
+          }
+        );
+        
+        tx.executeSql(
+          `CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            avatar TEXT,
+            createdAt TEXT DEFAULT (datetime('now')),
+            updatedAt TEXT DEFAULT (datetime('now'))
+          )`,
+          [],
+          () => {
+            log('Users table created successfully');
+            resolve();
+          },
+          (_, error) => {
+            log('Error creating users table:', error);
             reject(error);
             return true;
           }

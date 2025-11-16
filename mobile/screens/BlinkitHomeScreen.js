@@ -12,16 +12,17 @@ import {
   Dimensions,
   RefreshControl,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { categories } from '../shared/mockData';
-import { addToCart, removeFromCart, getCart, subscribeToCartUpdates } from '../shared/cartService';
+import { addToCart, removeFromCart, updateCartQuantity, getCart, subscribeToCartUpdates } from '../shared/cartService';
 import { useAuth } from '../src/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 import * as productService from '../src/services/productService';
+import * as categoryService from '../src/services/categoryService';
 
 // Import new components
 import BlinkitHeader from '../components/BlinkitHeader';
@@ -34,24 +35,17 @@ const { width } = Dimensions.get('window');
 
 // Banners are now managed by BannersContext and BannerManager
 
-// Add icons to categories
-const categoriesWithIcons = categories.map((category, index) => ({
-  ...category,
-  icon: [
-    'ios-basket', 'ios-restaurant', 'ios-wine', 'ios-pizza', 'ios-cafe',
-    'ios-ice-cream', 'ios-nutrition', 'ios-water', 'ios-flower', 'ios-medkit'
-  ][index % 10] || 'ios-grid'
-}));
-
 const BlinkitHomeScreen = () => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [products, setProducts] = useState([]);
   const [darkStoreProducts, setDarkStoreProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [scrollY] = useState(new Animated.Value(0));
   const { user } = useAuth();
   const isLoggedIn = !!user;
@@ -78,20 +72,35 @@ const BlinkitHomeScreen = () => {
     const loadData = async (retry = false) => {
       if (!isMounted) return;
       
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        if (isMounted) {
+          console.log('Loading timeout reached, setting isLoading to false');
+          setIsLoading(false);
+        }
+      }, 10000); // 10 second timeout
+      
       try {
         if (!retry) {
-          console.log('Loading products...');
+          console.log('Loading data...');
           setIsLoading(true);
         }
         
         try {
           // Load products from API
+          console.log('Loading products from API...');
           const productsData = await productService.getProducts();
           console.log('Products loaded:', productsData.length);
-          
+
+          // Load categories from API
+          console.log('Loading categories from API...');
+          const categoriesData = await categoryService.fetchCategories();
+          console.log('Categories loaded:', categoriesData.length);
+
           if (isMounted) {
             setProducts(productsData);
-            
+            setCategories(categoriesData);
+
             // Save products to AsyncStorage for offline access
             try {
               await AsyncStorage.setItem('cachedProducts', JSON.stringify(productsData));
@@ -110,22 +119,32 @@ const BlinkitHomeScreen = () => {
           retryCount = 0;
           
         } catch (error) {
-          console.error('Error in API call:', error);
+          console.error('Error in data loading:', error);
           
           // Retry logic for network errors or timeouts
           if (retryCount < MAX_RETRIES && 
               (error.message.includes('timed out') || 
                error.message.includes('Network request failed'))) {
             retryCount++;
-            console.log(`Retrying... Attempt ${retryCount} of ${MAX_RETRIES}`);
-            // Wait 1 second before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            return loadData(true);
+            console.log(`Retrying data load (${retryCount}/${MAX_RETRIES})...`);
+            setTimeout(() => loadData(true), 1000 * retryCount);
+          } else {
+            console.error('Max retries reached or unrecoverable error:', error);
+            if (isMounted) {
+              setIsLoading(false);
+              // Use fallback data to prevent app from hanging
+              console.log('Using fallback data');
+              setProducts([]);
+              setCategories([
+                { id: 1, name: 'Vegetables & Fruits', image: null, imageUrl: null },
+                { id: 2, name: 'Dairy & Bakery', image: null, imageUrl: null },
+                { id: 3, name: 'Electronics', image: null, imageUrl: null },
+                { id: 4, name: 'Home & Kitchen', image: null, imageUrl: null },
+                { id: 5, name: 'Personal Care', image: null, imageUrl: null }
+              ]);
+            }
           }
-          
-          throw error; // Re-throw to be caught by outer catch
-        }
-        
+        } 
       } catch (error) {
         console.error('Error loading data:', error);
         
@@ -143,13 +162,29 @@ const BlinkitHomeScreen = () => {
           const cachedProducts = await AsyncStorage.getItem('cachedProducts');
           if (cachedProducts && isMounted) {
             console.log('Using cached products');
-            setProducts(JSON.parse(cachedProducts));
+            const parsedProducts = JSON.parse(cachedProducts);
+            
+            // Ensure cached products have ratings
+            const processedCachedProducts = parsedProducts.map(product => {
+              let rating = product.rating;
+              if (!rating || typeof rating !== 'number') {
+                const idString = String(product.id || '');
+                const seed = idString.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+                rating = 3.5 + (seed % 15) / 10;
+                rating = Math.round(rating * 10) / 10;
+                console.log(`Generated rating ${rating} for cached product ${product.id}`);
+              }
+              return { ...product, rating };
+            });
+            
+            setProducts(processedCachedProducts);
           }
         } catch (cacheError) {
           console.error('Error loading cached products:', cacheError);
         }
       } finally {
-        if (isMounted) {
+        clearTimeout(timeoutId);
+        if (isMounted && !retry) {
           setIsLoading(false);
         }
       }
@@ -173,14 +208,37 @@ const BlinkitHomeScreen = () => {
     };
   }, []);
 
+  // Refresh products when screen comes into focus (e.g., after adding a new product)
+  useFocusEffect(
+    useCallback(() => {
+      const refreshData = async () => {
+        try {
+          const productsData = await productService.getProducts();
+          const categoriesData = await categoryService.fetchCategories();
+          setProducts(productsData);
+          setCategories(categoriesData);
+          console.log('Products and categories refreshed on screen focus');
+        } catch (error) {
+          console.error('Error refreshing data on focus:', error);
+        }
+      };
+
+      refreshData();
+    }, [])
+  );
+
   // Handle refresh
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const productsData = await productService.getProducts();
+      const [productsData, categoriesData] = await Promise.all([
+        productService.getProducts(),
+        categoryService.fetchCategories()
+      ]);
       setProducts(productsData);
+      setCategories(categoriesData);
     } catch (error) {
-      console.error('Error refreshing products:', error);
+      console.error('Error refreshing data:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -193,7 +251,11 @@ const BlinkitHomeScreen = () => {
   };
 
   const handleRemoveFromCart = (product, quantity) => {
-    removeFromCart(product.id, quantity);
+    if (quantity <= 0) {
+      removeFromCart(product.id);
+    } else {
+      updateCartQuantity(product.id, quantity);
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
@@ -206,15 +268,47 @@ const BlinkitHomeScreen = () => {
   }
 
   const filteredProducts = selectedCategory
-    ? products.filter(product => product.category === selectedCategory)
+    ? products.filter(product => product.category === selectedCategory.name)
     : products;
 
+  // Enhanced search with recommendations
   const searchedProducts = searchQuery
     ? filteredProducts.filter(product =>
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (product.description && product.description.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : filteredProducts;
+
+  // Get search recommendations based on existing products
+  const getSearchRecommendations = (query) => {
+    if (!query || query.length < 2) return [];
+    
+    const lowerQuery = query.toLowerCase();
+    const recommendations = products
+      .filter(product => 
+        product.name.toLowerCase().includes(lowerQuery) ||
+        (product.category && product.category.toLowerCase().includes(lowerQuery))
+      )
+      .slice(0, 5); // Limit to 5 recommendations
+    
+    return recommendations;
+  };
+
+  const handleSearchPress = () => {
+    setIsSearchFocused(true);
+  };
+
+  const handleSearchChange = (text) => {
+    setSearchQuery(text);
+  };
+
+  const handleSearchFocus = () => {
+    setIsSearchFocused(true);
+  };
+
+  const handleSearchBlur = () => {
+    // Optional: Keep search focused until user explicitly closes
+  };
 
   const getCartQuantity = (productId) => {
     const item = cartItems.find(item => item.id === productId);
@@ -239,13 +333,17 @@ const BlinkitHomeScreen = () => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Header */}
-      <BlinkitHeader 
-        location="Home"
-        onLocationPress={() => navigation.navigate('Location')}
-        onSearchPress={() => navigation.navigate('Search')}
-        onCartPress={() => navigation.navigate('Cart')}
-        cartItemCount={cartItemCount}
-      />
+      <BlinkitHeader
+            location="Home"
+            onLocationPress={() => navigation.navigate('Location')}
+            onSearchPress={handleSearchPress}
+            onCartPress={() => navigation.navigate('Cart')}
+            cartItemCount={cartItemCount}
+            searchQuery={searchQuery}
+            onSearchChange={handleSearchChange}
+            onSearchFocus={handleSearchFocus}
+            isSearchFocused={isSearchFocused}
+          />
       
       {/* Main Content */}
       <Animated.ScrollView
@@ -259,20 +357,40 @@ const BlinkitHomeScreen = () => {
           />
         }
       >
+        {isSearchFocused && searchQuery.length >= 2 && (
+          <View style={searchStyles.recommendationsContainer}>
+            <Text style={searchStyles.recommendationsTitle}>Recommendations</Text>
+            {getSearchRecommendations(searchQuery).map((product) => (
+              <TouchableOpacity
+                key={product.id}
+                style={searchStyles.recommendationItem}
+                onPress={() => {
+                  setSearchQuery(product.name);
+                  setIsSearchFocused(false);
+                }}
+              >
+                <Text style={searchStyles.recommendationText}>{product.name}</Text>
+                <Text style={searchStyles.recommendationPrice}>₹{product.price}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+        
         <View style={styles.scrollContent}>
           {/* Banner Carousel */}
           <BannerCarousel />
           
           {/* Categories */}
           <CategoriesRow 
-            categories={categoriesWithIcons}
-            onCategorySelect={setSelectedCategory}
-            selectedCategory={selectedCategory}
+            categories={categories}
+            onCategoryPress={(category) => {
+              navigation.navigate('Categories', { categoryId: category.id });
+            }}
           />
           
           {/* Products Grid */}
           <Text style={styles.sectionTitle}>
-            {selectedCategory ? selectedCategory.name : 'Recommended for you'}
+            {searchQuery ? `Search Results for "${searchQuery}"` : (selectedCategory ? selectedCategory.name : 'Recommended for you')}
           </Text>
           
           <View style={styles.productsGrid}>
@@ -280,7 +398,8 @@ const BlinkitHomeScreen = () => {
               data={searchedProducts}
               renderItem={renderProductItem}
               keyExtractor={item => item.id.toString()}
-              numColumns={2}
+              numColumns={3}
+              key="3-columns"
             />
           </View>
         </View>
@@ -310,15 +429,6 @@ const styles = StyleSheet.create({
   emptyState: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    minHeight: 200,
-  },
-  emptyStateText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
   },
   scrollView: {
     flex: 1,
@@ -330,32 +440,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    padding: 8,
+    padding: 4,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#333333',
     marginLeft: 16,
-    marginTop: 24,
+    marginRight: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+const searchStyles = StyleSheet.create({
+  recommendationsContainer: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  recommendationsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
     marginBottom: 12,
   },
-  notification: {
-    position: 'absolute',
-    bottom: 80,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    padding: 14,
-    borderRadius: 8,
+  recommendationItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    elevation: 4,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  notificationText: {
-    color: 'white',
-    fontFamily: 'System',
-    fontWeight: '500',
+  recommendationText: {
+    flex: 1,
     fontSize: 14,
+    color: '#333',
+  },
+  recommendationPrice: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10B981',
   },
 });
 

@@ -35,6 +35,7 @@ import RiderTabs from './navigation/RiderTabs';
 import AdminPanel from './screens/admin/AdminPanel';
 import DarkStore from './screens/admin/DarkStore';
 import HomeContentManager from './screens/admin/HomeContentManager';
+import AdminCategories from './app/screens/admin/AdminCategories';
 import LoginScreen from './app/screens/LoginScreen';
 import RegisterScreen from './app/screens/RegisterScreen';
 
@@ -355,6 +356,14 @@ function Navigation() {
         component={HomeContentManager}
         options={{ 
           title: 'Manage Home Content',
+          headerShown: true
+        }}
+      />
+      <Stack.Screen 
+        name="AdminCategories" 
+        component={AdminCategories}
+        options={{ 
+          title: 'Category Management',
           headerShown: true
         }}
       />

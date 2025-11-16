@@ -1,10 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const { testConnection } = require('../config/db');
 
 // Import routes
 const productRoutes = require('./routes/api/products');
+const createCategoryRoutes = require('./routes/api/categories');
 
 // Initialize express app
 const app = express();
@@ -79,8 +81,34 @@ app.use('/uploads', express.static(uploadsPath, {
 console.log('Serving static files from:', publicPath);
 console.log('Serving uploads from:', uploadsPath);
 
-// API Routes
-app.use('/api/products', productRoutes);
+// API Routes - Initialize database and create routes
+const initializeRoutes = async () => {
+  try {
+    const db = require('../config/db');
+    
+    // Initialize product routes with database
+    app.use('/api/products', productRoutes);
+    
+    // Initialize category routes with database
+    const categoryRoutes = createCategoryRoutes(db);
+    app.use('/api/categories', categoryRoutes);
+    
+    console.log('API routes initialized successfully');
+  } catch (error) {
+    console.error('Error initializing API routes:', error);
+  }
+};
+
+// Initialize routes after database connection
+testConnection()
+  .then(() => {
+    console.log('Database connection established successfully');
+    return initializeRoutes();
+  })
+  .catch((error) => {
+    console.error('Failed to connect to database:', error);
+    process.exit(1);
+  });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -100,15 +128,5 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found' });
 });
-
-// Test database connection on startup
-testConnection()
-  .then(() => {
-    console.log('Database connection established successfully');
-  })
-  .catch((error) => {
-    console.error('Failed to connect to database:', error);
-    process.exit(1);
-  });
 
 module.exports = app;

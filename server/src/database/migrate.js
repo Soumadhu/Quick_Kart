@@ -5,15 +5,12 @@ async function migrate() {
   try {
     const db = config.knex();
     
-    // Run migrations
+    // Run migrations only
     console.log('Running migrations...');
     await db.migrate.latest();
     
-    // Run seeds
-    console.log('Running seeds...');
-    await db.seed.run();
-    
     console.log('Database migration completed successfully');
+    console.log('To seed the database, run: npm run seed');
     process.exit(0);
   } catch (error) {
     console.error('Error running migrations:', error);
