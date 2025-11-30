@@ -58,38 +58,48 @@ const BlinkitHeader = ({ location = 'Home', onLocationPress, onSearchPress, onCa
           <Ionicons name="cart-outline" size={24} color="#333" />
           {cartItemCount > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartItemCount}</Text>
+              <Text style={styles.cartBadgeText}>
+                {cartItemCount > 9 ? '9+' : cartItemCount}
+              </Text>
             </View>
           )}
         </TouchableOpacity>
       </View>
 
       {/* Search Bar */}
-      {isSearchFocused ? (
-        <View style={styles.searchContainerActive}>
-          <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+        {isSearchFocused ? (
           <TextInput
             style={styles.searchInput}
             placeholder="Search for products..."
             placeholderTextColor="#999"
             value={searchQuery}
             onChangeText={onSearchChange}
-            onFocus={onSearchFocus}
             autoFocus={true}
             returnKeyType="search"
+            onBlur={() => !searchQuery && onSearchChange('')}
           />
-          <TouchableOpacity onPress={() => onSearchChange('')}>
+        ) : (
+          <TouchableOpacity 
+            style={styles.searchPlaceholderContainer} 
+            onPress={onSearchPress}
+            activeOpacity={0.8}
+          >
+            <Animated.Text 
+              style={[styles.searchPlaceholder, { transform: [{ translateY }] }]}
+              numberOfLines={1}
+            >
+              {searchTerms[currentSearchIndex]}
+            </Animated.Text>
+          </TouchableOpacity>
+        )}
+        {isSearchFocused && (
+          <TouchableOpacity onPress={() => onSearchChange('')} style={styles.closeButton}>
             <Ionicons name="close-circle" size={20} color="#999" />
           </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity style={styles.searchContainer} onPress={onSearchPress} activeOpacity={0.8}>
-          <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-          <Animated.Text style={[styles.searchPlaceholder, { transform: [{ translateY }] }]}>
-            {searchTerms[currentSearchIndex]}
-          </Animated.Text>
-        </TouchableOpacity>
-      )}
+        )}
+      </View>
     </View>
   );
 };
@@ -153,18 +163,23 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F2',
+    backgroundColor: '#F0F2F5',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    margin: 10,
+    height: 45,
+    position: 'relative',
   },
   searchContainerActive: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F2',
+    backgroundColor: '#fff',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    margin: 10,
+    height: 45,
+    borderWidth: 1,
+    borderColor: '#51CC5E',
   },
   searchInput: {
     flex: 1,
@@ -177,8 +192,21 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   searchPlaceholder: {
+    flex: 1,
     color: '#999',
+    marginLeft: 8,
     fontSize: 14,
+    paddingVertical: 10,
+  },
+  searchPlaceholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    height: '100%',
+    overflow: 'hidden',
+  },
+  closeButton: {
+    padding: 5,
+    marginLeft: 5,
   },
 });
 

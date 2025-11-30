@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiBaseUrl, getBaseUrl } from './apiConfig';
 
 // For web compatibility
 if (Platform.OS === 'web') {
@@ -14,84 +15,59 @@ if (Platform.OS === 'web') {
   }
 }
 
-// Environment configuration
-const ENV = 'development'; // Change to 'production' for production builds
-
-// Server configuration
-const SERVER_IP = '192.168.0.102';
-const SERVER_PORT = '5000';
-const BASE_URL = `http://${SERVER_IP}:${SERVER_PORT}`;
-
-// API Configuration
-const API_CONFIG = {
-  development: {
-    android: `${BASE_URL}/api`,
-    ios: `${BASE_URL}/api`,
-    default: `${BASE_URL}/api`
-  },
-  production: {
-    default: 'https://your-production-api.com/api'
-  }
-};
-
-// Get the appropriate API URL based on platform and environment
-function getApiBaseUrl() {
-  const config = API_CONFIG[ENV] || API_CONFIG.development;
-  let baseUrl;
-  
-  if (Platform.OS === 'android') {
-    baseUrl = config.android || config.default;
-  } else if (Platform.OS === 'ios') {
-    baseUrl = config.ios || config.default;
-  } else {
-    // For web, use the full URL with IP
-    baseUrl = `http://192.168.0.102:5000/api`;
-  }
-  
-  console.log(`[API] Using base URL: ${baseUrl} (${Platform.OS})`);
-  return baseUrl;
-}
-
 const API_BASE_URL = getApiBaseUrl();
+const STATIC_BASE_URL = getBaseUrl();
 
 // Helper function to fix image URLs
 const fixImageUrl = (url) => {
-  if (!url || url === null || url === 'undefined') return null;
+  if (!url || url === null || url === 'undefined' || url === 'null') {
+    return null;
+  }
   
   try {
-    // Handle case where URL is already correct
-    if (url.startsWith(BASE_URL)) {
+    // Get the current base URL dynamically in case it changed
+    const currentBaseUrl = getBaseUrl();
+    const currentHost = new URL(currentBaseUrl).hostname;
+    
+    // If URL is already absolute with the correct base, return as is
+    if (url.startsWith(currentBaseUrl)) {
       return url;
     }
     
-    // If it's a full URL
+    // If it's a full URL with a different IP, replace the host
     if (url.startsWith('http')) {
-      const urlObj = new URL(url);
-      const path = urlObj.pathname;
-      
-      // Replace localhost/127.0.0.1 with the server IP
-      if (urlObj.hostname === 'localhost' || 
-          urlObj.hostname === '127.0.0.1' || 
-          urlObj.port === '5000') {
-        const search = urlObj.search || '';
-        const hash = urlObj.hash || '';
-        // Rebuild the URL with our server IP
-        return `${BASE_URL}${path}${search}${hash}`;
+      try {
+        const urlObj = new URL(url);
+        // Only replace if it's an IP address (not a domain name)
+        if (/\d+\.\d+\.\d+\.\d+/.test(urlObj.hostname)) {
+          urlObj.hostname = new URL(currentBaseUrl).hostname;
+          urlObj.port = new URL(currentBaseUrl).port || '';
+          return urlObj.toString();
+        }
+        return url; // Keep the URL as is if it's a domain name
+      } catch (e) {
+        console.warn('Error processing URL:', { url, error: e.message });
+        return url; // Return original if we can't parse it
       }
-      
-      return url; // Return as is if it's already a good external URL
-    } 
+    }
     
-    // If it's a path, ensure it has a leading slash and prepend the server URL
-    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
-    let fixedUrl = `${BASE_URL}${cleanUrl}`;
+    // Handle relative URLs (remove leading slash if present)
+    const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
     
-    // Clean up any double slashes
-    fixedUrl = fixedUrl.replace(/([^:]\/)\/+/g, '$1');
+    // Construct the full URL using the current base URL
+    let fullUrl = `${currentBaseUrl.replace(/\/+$/, '')}/${cleanUrl.replace(/^\/+/, '')}`;
+    
+    // Clean up any double slashes that might occur (except after http:)
+    fullUrl = fullUrl.replace(/([^:]\/)\/+/g, '$1');
     
     // Validate the URL
-    new URL(fixedUrl);
-    return fixedUrl;
+    try {
+      new URL(fullUrl);
+      return fullUrl;
+    } catch (e) {
+      console.warn('Invalid URL after fixing:', { originalUrl: url, fixedUrl: fullUrl });
+      return null;
+    }
   } catch (e) {
     console.warn('Invalid image URL, using placeholder:', { 
       originalUrl: url, 
@@ -247,7 +223,7 @@ export const saveProductWithImage = async (product, imageUri) => {
 // Get all products
 export const getProducts = async () => {
   try {
-    const url = `${API_BASE_URL}/products`;
+    const url = `${API_BASE_URL}/api/products`;
     console.log(`[API] Fetching products from: ${url}`);
     
     const controller = new AbortController();
@@ -469,7 +445,7 @@ export const getProduct = async (id) => {
     throw new Error('Product ID is required');
   }
 
-  const url = `${API_BASE_URL}/products/${id}`;
+  const url = `${API_BASE_URL}/api/products/${id}`;
   console.log(`[API] Fetching product ${id} from: ${url}`);
   
   const controller = new AbortController();

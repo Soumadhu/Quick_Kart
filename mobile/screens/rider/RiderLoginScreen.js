@@ -1,17 +1,63 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useContext } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import riderService from '../../src/services/riderService';
 
 const RiderLoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation();
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
 
-  const handleLogin = () => {
-    // TODO: Implement rider login logic
-    navigation.navigate('RiderTabs');
+    setIsLoading(true);
+    try {
+      // Authenticate using rider service
+      const riderData = await riderService.loginRider({ email, password });
+      
+      if (riderData && riderData.token) {
+        // Store rider token and user data
+        await AsyncStorage.setItem('riderToken', riderData.token);
+        await AsyncStorage.setItem('riderData', JSON.stringify({
+          id: riderData.id,
+          email: riderData.email,
+          name: riderData.name,
+          phone: riderData.phone
+        }));
+        
+        // Navigate to rider dashboard
+        navigation.replace('RiderTabs');
+      } else {
+        throw new Error('Invalid email or password');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      let errorMessage = 'An error occurred during login. Please try again.';
+      
+      if (error.response) {
+        // Server responded with an error status code
+        errorMessage = error.response.data?.error || 
+                      error.response.data?.message || 
+                      'Invalid email or password';
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'Unable to connect to the server. Please check your internet connection.';
+      } else if (error.message) {
+        // Error message from the service
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -67,11 +113,22 @@ const RiderLoginScreen = () => {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.loginButton, (!email || !password) && styles.disabledButton]}
+          style={[styles.loginButton, (!email || !password || isLoading) && styles.disabledButton]}
           onPress={handleLogin}
-          disabled={!email || !password}
+          disabled={!email || !password || isLoading}
         >
-          <Text style={styles.loginButtonText}>Login</Text>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.loginButtonText}>Login</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.signUpButton}
+          onPress={() => navigation.navigate('RiderRegistration')}
+        >
+          <Text style={styles.signUpButtonText}>Create New Account</Text>
         </TouchableOpacity>
       </View>
 
@@ -153,10 +210,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  signUpButton: {
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#45a049',
+  },
+  signUpButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 30,
   },
   footerText: {
     color: '#666',

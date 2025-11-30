@@ -52,6 +52,12 @@ export default function AdminLayout() {
         }}
       />
       <Stack.Screen 
+        name="AdminRiders" 
+        options={{
+          title: 'Manage Riders',
+        }}
+      />
+      <Stack.Screen 
         name="AdminSettings" 
         options={{
           title: 'Admin Settings',

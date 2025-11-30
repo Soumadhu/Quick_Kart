@@ -2,12 +2,10 @@ import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as SQLite from 'expo-sqlite';
 import { openDatabase } from 'expo-sqlite';
+import { getApiBaseUrl } from './apiConfig';
 
-// API configuration
-// Use 10.0.2.2 for Android emulator to connect to localhost on development machine
-const API_BASE_URL = Platform.OS === 'android' 
-  ? 'http://10.0.2.2:5000/api' 
-  : 'http://localhost:5000/api';
+// API configuration - use dynamic configuration from apiConfig
+const API_BASE_URL = getApiBaseUrl();
 const isWeb = Platform.OS === 'web';
 
 // Initialize the database

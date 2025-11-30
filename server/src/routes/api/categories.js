@@ -49,12 +49,31 @@ const upload = multer({
 
 function createCategoryRoutes(db) {
   const CategoryController = require('../../controllers/categoryController');
-  const categoryController = new CategoryController(db);
   
+  // Ensure db is properly initialized
+  if (!db) {
+    console.error('Database connection not provided to createCategoryRoutes');
+    throw new Error('Database connection is required');
+  }
+  
+  const categoryController = new CategoryController(db);
   const router = express.Router();
+  
+  // Log route registration
+  console.log('Initializing category routes with database connection');
 
   // GET /api/categories - Get all categories
-  router.get('/', categoryController.getCategories.bind(categoryController));
+  router.get('/', (req, res) => {
+    console.log('GET /api/categories request received');
+    categoryController.getCategories(req, res).catch(error => {
+      console.error('Error in GET /api/categories:', error);
+      res.status(500).json({ 
+        status: 'error',
+        message: 'Failed to fetch categories',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    });
+  });
 
   // GET /api/categories/:id - Get category by ID
   router.get('/:id', categoryController.getCategoryById.bind(categoryController));

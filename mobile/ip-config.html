@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickKart - API IP Configuration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+        .alert {
+            background-color: #f8f9fa;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        .alert strong {
+            color: #856404;
+        }
+        .current-ip {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>QuickKart API Configuration</h1>
+        <p>Enter the IP address of your backend server. This will be saved in your browser's storage.</p>
+        <div class="alert">
+            <strong>Important:</strong> After saving, you'll need to completely close and restart your React Native app for the changes to take effect.
+        </div>
+        
+        <div class="form-group">
+            <label for="ipAddress">Enter Server IP Address:</label>
+            <input type="text" id="ipAddress" placeholder="e.g., 192.168.1.100" value="192.168.254.163">
+        </div>
+        
+        <div class="form-group">
+            <label for="port">Port:</label>
+            <input type="text" id="port" placeholder="e.g., 5000" value="5000">
+        </div>
+        
+        <button id="saveBtn">Save Configuration</button>
+        
+        <div id="status"></div>
+        
+        <div class="current-ip">
+            <strong>Current API Endpoint:</strong>
+            <div id="currentEndpoint">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ipInput = document.getElementById('ipAddress');
+            const portInput = document.getElementById('port');
+            const saveBtn = document.getElementById('saveBtn');
+            const statusDiv = document.getElementById('status');
+            const currentEndpoint = document.getElementById('currentEndpoint');
+            
+            // Load saved configuration
+            const savedConfig = localStorage.getItem('apiConfig');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    ipInput.value = config.ip || '';
+                    portInput.value = config.port || '5000';
+                    updateCurrentEndpoint(config.ip, config.port);
+                } catch (e) {
+                    console.error('Error loading saved configuration:', e);
+                }
+            }
+            
+            // Update current endpoint display
+            function updateCurrentEndpoint(ip, port) {
+                if (ip && port) {
+                    currentEndpoint.textContent = `http://${ip}:${port}/api`;
+                } else {
+                    currentEndpoint.textContent = 'Not configured';
+                }
+            }
+            
+            // Save configuration
+            saveBtn.addEventListener('click', async function() {
+                const ip = ipInput.value.trim();
+                const port = portInput.value.trim();
+                
+                if (!ip) {
+                    showStatus('Please enter a valid IP address', 'error');
+                    return;
+                }
+                
+                // Basic IP validation
+                if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+                    showStatus('Please enter a valid IP address', 'error');
+                    return;
+                }
+                
+                // Basic port validation
+                if (!/^\d+$/.test(port) || port < 1 || port > 65535) {
+                    showStatus('Please enter a valid port number (1-65535)', 'error');
+                    return;
+                }
+                
+                // Save to local storage
+                const config = { ip, port };
+                localStorage.setItem('apiConfig', JSON.stringify(config));
+                
+                // Update the API configuration file
+                try {
+                    try {
+                        // Save to localStorage
+                        const config = { ip, port };
+                        localStorage.setItem('quickkart_api_config', JSON.stringify(config));
+                        
+                        // Also save to a more accessible location for React Native
+                        const configForRN = {
+                            ip: ip,
+                            port: port,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        // Save in a way that's accessible to React Native
+                        document.cookie = `quickkart_api_config=${JSON.stringify(configForRN)}; path=/; max-age=31536000`;
+                        
+                        showStatus('Configuration saved successfully!', 'success');
+                        updateCurrentEndpoint(ip, port);
+                        
+                        // Test the connection
+                        await testConnection(ip, port);
+                        
+                        // Show instructions
+                        showStatus('Restart your React Native app for changes to take effect!', 'success', 10000);
+                        
+                    } catch (e) {
+                        console.error('Error saving configuration:', e);
+                        throw new Error('Failed to save configuration: ' + e.message);
+                    }
+                } catch (error) {
+                    console.error('Error saving configuration:', error);
+                    showStatus('Error saving configuration: ' + error.message, 'error');
+                }
+            });
+            
+            // Test connection to the API
+            async function testConnection(ip, port) {
+                try {
+                    showStatus('Testing connection to API...', 'success');
+                    const response = await fetch(`http://${ip}:${port}/api/products`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        showStatus('Successfully connected to the API!', 'success');
+                    } else {
+                        throw new Error(`API returned status: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('Connection test failed:', error);
+                    showStatus(`Connection test failed: ${error.message}`, 'error');
+                }
+            }
+            
+            // Show status message
+            function showStatus(message, type, duration = 5000) {
+                statusDiv.textContent = message;
+                statusDiv.className = type;
+                statusDiv.style.display = 'block';
+                
+                // Hide status after specified duration (default 5 seconds)
+                if (duration > 0) {
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, duration);
+                }
+            }
+            
+            // Initial update of current endpoint display
+            updateCurrentEndpoint(ipInput.value, portInput.value);
+        });
+    </script>
+</body>
+</html>

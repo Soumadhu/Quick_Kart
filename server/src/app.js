@@ -7,6 +7,7 @@ const { testConnection } = require('../config/db');
 // Import routes
 const productRoutes = require('./routes/api/products');
 const createCategoryRoutes = require('./routes/api/categories');
+const riderRoutes = require('./routes/riderRoutes');
 
 // Initialize express app
 const app = express();
@@ -93,6 +94,9 @@ const initializeRoutes = async () => {
     const categoryRoutes = createCategoryRoutes(db);
     app.use('/api/categories', categoryRoutes);
     
+    // Initialize rider routes
+    app.use('/api/riders', riderRoutes);
+    
     console.log('API routes initialized successfully');
   } catch (error) {
     console.error('Error initializing API routes:', error);
@@ -103,6 +107,7 @@ const initializeRoutes = async () => {
 testConnection()
   .then(() => {
     console.log('Database connection established successfully');
+    // Initialize routes after successful database connection
     return initializeRoutes();
   })
   .catch((error) => {

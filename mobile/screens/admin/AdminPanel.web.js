@@ -65,6 +65,13 @@ const menuItems = [
     count: 89
   },
   { 
+    title: 'Riders', 
+    screen: 'AdminRiders',
+    icon: 'bicycle',
+    iconSet: 'Ionicons',
+    count: 15
+  },
+  { 
     title: 'Settings', 
     screen: 'AdminSettings',
     icon: 'settings',
