@@ -28,31 +28,19 @@ const config = {
 // Create database instance
 const db = knex(config);
 
-// Test the database connection
-db.raw('SELECT 1+1 as result')
-  .then(() => {
-    console.log('Successfully connected to SQLite database');
-  })
-  .catch(err => {
-    console.error('Error connecting to the database', err);
-  });
+// Test the connection
+if (!isProduction) {
+  db.raw('SELECT 1')
+    .then(() => {
+      console.log('Successfully connected to SQLite database');
+    })
+    .catch((err) => {
+      console.error('Error connecting to the database:', err);
+      process.exit(1);
+    });
+}
 
-module.exports = {
-  // Raw query helper
-  query: (text, params) => {
-    return db.raw(text, params || []);
-  },
-  
-  // Get a transaction
-  transaction: () => {
-    return db.transaction();
-  },
-  
-  // Get the Knex instance for query building
-  knex: () => db,
-  
-  // Close the database connection (for graceful shutdown)
-  close: () => {
-    return db.destroy();
-  }
-};
+// Add a query builder function
+db.queryBuilder = () => db.client.queryBuilder();
+
+module.exports = db;

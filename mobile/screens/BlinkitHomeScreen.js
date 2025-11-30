@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import * as Location from 'expo-location';
 import {
   View,
   Text,
@@ -29,13 +30,12 @@ import BlinkitHeader from '../components/BlinkitHeader';
 import { BannerCarousel } from '../components';
 import CategoriesRow from '../components/CategoriesRow';
 import ProductCard from '../components/ProductCard';
-import StickyCart from '../components/StickyCart';
 
 const { width } = Dimensions.get('window');
 
 // Banners are now managed by BannersContext and BannerManager
 
-const BlinkitHomeScreen = () => {
+const BlinkitHomeScreen = ({ onScroll, scrollEventThrottle = 16 }) => {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -47,6 +47,8 @@ const BlinkitHomeScreen = () => {
   const [darkStoreProducts, setDarkStoreProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [scrollY] = useState(new Animated.Value(0));
+  const [currentLocation, setCurrentLocation] = useState('Locating...');
+  const [locationError, setLocationError] = useState(null);
   const { user } = useAuth();
   const isLoggedIn = !!user;
   
@@ -58,10 +60,50 @@ const BlinkitHomeScreen = () => {
   const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
   
   // Handle scroll events
-  const onScroll = Animated.event(
+  const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: false }
+    { 
+      useNativeDriver: false,
+      listener: (event) => {
+        // Forward the scroll event to the parent component
+        if (onScroll) {
+          onScroll(event);
+        }
+      }
+    }
   );
+
+  // Get current location
+  const getCurrentLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        setLocationError('Location permission denied');
+        setCurrentLocation('Location access needed');
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const address = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      if (address && address[0]) {
+        const { city, region, street, name } = address[0];
+        const locationText = [street, name, city, region].filter(Boolean).join(', ');
+        setCurrentLocation(locationText || 'Current Location');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocationError('Unable to get location');
+      setCurrentLocation('Location unavailable');
+    }
+  };
 
   // Load products and cart items on component mount
   useEffect(() => {
@@ -191,6 +233,7 @@ const BlinkitHomeScreen = () => {
     };
 
     loadData();
+    getCurrentLocation();
 
     // Subscribe to cart updates
     const unsubscribe = subscribeToCartUpdates((updatedCart) => {
@@ -307,7 +350,14 @@ const BlinkitHomeScreen = () => {
   };
 
   const handleSearchBlur = () => {
-    // Optional: Keep search focused until user explicitly closes
+    if (!searchQuery) {
+      setIsSearchFocused(false);
+    }
+  };
+  
+  const handleSearchClose = () => {
+    setSearchQuery('');
+    setIsSearchFocused(false);
   };
 
   const getCartQuantity = (productId) => {
@@ -334,22 +384,27 @@ const BlinkitHomeScreen = () => {
       
       {/* Header */}
       <BlinkitHeader
-            location="Home"
-            onLocationPress={() => navigation.navigate('Location')}
-            onSearchPress={handleSearchPress}
-            onCartPress={() => navigation.navigate('Cart')}
-            cartItemCount={cartItemCount}
-            searchQuery={searchQuery}
-            onSearchChange={handleSearchChange}
-            onSearchFocus={handleSearchFocus}
-            isSearchFocused={isSearchFocused}
-          />
+        location={currentLocation}
+        onLocationPress={getCurrentLocation}
+        onSearchPress={handleSearchPress}
+        onCartPress={() => navigation.navigate('Cart')}
+        cartItemCount={cartItemCount}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
+        onSearchFocus={handleSearchFocus}
+        isSearchFocused={isSearchFocused}
+      />
+      {locationError && (
+        <View style={styles.locationErrorContainer}>
+          <Text style={styles.locationError}>{locationError}</Text>
+        </View>
+      )}
       
       {/* Main Content */}
       <Animated.ScrollView
         style={styles.scrollView}
-        scrollEventThrottle={16}
-        onScroll={onScroll}
+        onScroll={handleScroll}
+        scrollEventThrottle={scrollEventThrottle}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -404,14 +459,6 @@ const BlinkitHomeScreen = () => {
           </View>
         </View>
       </Animated.ScrollView>
-      
-      {/* Sticky Cart */}
-      <StickyCart 
-        itemCount={cartItemCount}
-        totalAmount={cartTotal}
-        onPress={() => navigation.navigate('Cart')}
-        isVisible={cartItemCount > 0}
-      />
     </View>
   );
 };
@@ -455,6 +502,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  locationErrorContainer: {
+    backgroundColor: '#FFEBEE',
+    padding: 8,
+    alignItems: 'center',
+  },
+  locationError: {
+    color: '#D32F2F',
+    fontSize: 12,
   },
 });
 

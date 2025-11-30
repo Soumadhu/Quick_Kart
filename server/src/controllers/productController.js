@@ -1,6 +1,22 @@
 const db = require('../config/db');
+const { raw } = require('express');
 const path = require('path');
 const fs = require('fs');
+
+// Helper function to get full image URL
+const getFullImageUrl = (req, imagePath) => {
+  if (!imagePath) return null;
+  
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith('http')) {
+    return imagePath;
+  }
+  
+  // Otherwise, construct the full URL
+  const protocol = req.protocol || 'http';
+  const host = req.get('host') || 'localhost:5000';
+  return `${protocol}://${host}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
+};
 
 // Get product by ID
 exports.getProductById = async (req, res) => {
@@ -8,18 +24,13 @@ exports.getProductById = async (req, res) => {
     const { id } = req.params;
     console.log(`[DEBUG] Fetching product with ID: ${id}`);
     
-    // First, check if the products table exists
-    const tableExists = await db.query(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='products'"
-    );
+    // Check if the products table exists and get the product
+    const product = await db('products').where({ id }).first();
     
-    if (tableExists.length === 0) {
-      console.error('[ERROR] Products table does not exist');
-      return res.status(500).json({ error: 'Products table not found' });
+    if (!product) {
+      console.log(`[DEBUG] No product found with ID: ${id}`);
+      return res.status(404).json({ error: 'Product not found' });
     }
-    
-    // Get the product
-    const [product] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
     console.log(`[DEBUG] Product query result:`, product);
     
     if (!product) {
@@ -27,10 +38,8 @@ exports.getProductById = async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    // Update image URL to be a full URL
-    if (product.image_url) {
-      product.image_url = `http://localhost:5000${product.image_url}`;
-    }
+    // Ensure the image URL is a full URL
+    product.image_url = getFullImageUrl(req, product.image_url);
     
     res.json(product);
   } catch (error) {
@@ -45,12 +54,12 @@ exports.getProductById = async (req, res) => {
 // Get all products
 exports.getAllProducts = async (req, res) => {
   try {
-    const products = await db.query('SELECT * FROM products');
+    const products = await db('products').select('*');
     
     // Update image URLs to be full URLs
     const productsWithFullUrls = products.map(product => ({
       ...product,
-      image_url: product.image_url ? `http://localhost:5000${product.image_url}` : null
+      image_url: getFullImageUrl(req, product.image_url)
     }));
     
     res.json(productsWithFullUrls);
@@ -108,6 +117,8 @@ exports.createProduct = async (req, res) => {
 
     // Handle file upload if present
     let imagePath = null;
+    let imageUrl = null;
+    
     if (req.file) {
       try {
         // Verify the file was saved successfully
@@ -120,8 +131,18 @@ exports.createProduct = async (req, res) => {
           throw new Error('Failed to save uploaded file');
         }
         
+        // Store the relative path for database
         imagePath = `/uploads/${req.file.filename}`;
-        console.log('File uploaded successfully:', imagePath);
+        
+        // Generate public URL
+        const protocol = req.protocol || 'http';
+        const host = req.get('host') || 'localhost:5000';
+        imageUrl = `${protocol}://${host}${imagePath}`;
+        
+        console.log('File uploaded successfully:', {
+          path: imagePath,
+          url: imageUrl
+        });
       } catch (fileError) {
         console.error('Error handling uploaded file:', fileError);
         return res.status(500).json({ 
@@ -138,7 +159,7 @@ exports.createProduct = async (req, res) => {
       price,
       originalPrice,
       unit,
-      imagePath,
+      imageUrl || imagePath, // Use full URL if available, fallback to path
       stock,
       rating,
       deliveryTime,
@@ -193,10 +214,8 @@ exports.createProduct = async (req, res) => {
         throw new Error('Failed to retrieve the created product from database');
       }
       
-      // Update the image URL to be a full URL if it exists
-      if (product.image_url) {
-        product.image_url = `http://localhost:5000${product.image_url}`;
-      }
+      // Ensure the image URL is a full URL
+      product.image_url = getFullImageUrl(req, product.image_url);
       
       console.log('Product created successfully:', product);
       return res.status(201).json(product);
@@ -242,10 +261,18 @@ exports.createProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    await db.query('DELETE FROM products WHERE id = ?', [id]);
+    const deleted = await db('products').where({ id }).del();
+    
+    if (deleted === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+    
     res.status(200).json({ message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Error deleting product:', error);
-    res.status(500).json({ error: 'Failed to delete product', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to delete product', 
+      details: error.message 
+    });
   }
 };

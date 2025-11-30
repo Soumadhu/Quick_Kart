@@ -1,5 +1,6 @@
 // Base URL for your API
-const API_URL = 'http://192.168.251.163:5000'; // Local development server
+import { getApiBaseUrl } from '../services/apiConfig';
+const API_URL = getApiBaseUrl(); // Get dynamic API URL server
 
 // For Android emulator, use the following instead:
 // const API_URL = 'http://10.0.2.2:3000';

@@ -19,11 +19,11 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE_URL = Platform.OS === 'web' 
-  ? 'http://192.168.0.102:5000/api' 
+  ? 'http://192.168.0.103:5000/api' 
   : 'http://10.0.2.2:5000/api';
 
 const STATIC_BASE_URL = Platform.OS === 'web' 
-  ? 'http://192.168.0.102:5000' 
+  ? 'http://192.168.0.103:5000' 
   : 'http://10.0.2.2:5000';
 
 const AdminCategories = ({ navigation }) => {

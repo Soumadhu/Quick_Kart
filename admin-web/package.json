@@ -1,0 +1,51 @@
+{
+  "name": "admin-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QuickKart Admin Panel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon --watch . --ext js --exec node server.js",
+    "build:mobile": "cd ../mobile && npx expo export -p web",
+    "build": "npm run build:mobile",
+    "serve": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "admin",
+    "dashboard",
+    "quickkart"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "4.18.2",
+    "morgan": "^1.10.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "nodemon": "^3.1.11",
+    "prettier": "^3.7.1"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
