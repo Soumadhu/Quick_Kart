@@ -1,35 +1,93 @@
-// screens/CheckoutScreen.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { getCart, clearCart, subscribeToCartUpdates, updateCartQuantity } from '../shared/cartService';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  SafeAreaView,
+  Image,
+  ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getCart, subscribeToCartUpdates } from '../shared/cartService';
+import { useAuth } from '../src/contexts/AuthContext';
+import { useProfile } from '../src/contexts/ProfileContext';
+import { getBaseUrl } from '../src/services/apiConfig';
 
-const CheckoutScreen = ({ navigation }) => {
-  const [cart, setCart] = useState(getCart());
-  const [loading, setLoading] = useState(false);
-  const [deliveryAddress, setDeliveryAddress] = useState('123 Main St, City, Country');
+const CheckoutScreen = ({ navigation, route }) => {
+  const { user } = useAuth();
+  const { profile, location } = useProfile();
+  const [cartItems, setCartItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Initialize delivery address state
+  const [deliveryAddress, setDeliveryAddress] = useState({
+    name: 'John Doe',
+    email: '',
+    phone: '',
+    street: '123 Main Street',
+    city: 'New York',
+    state: 'NY',
+    pincode: '10001',
+    coordinates: null
+  });
+
+  // Update delivery address when profile or user data changes
+  useEffect(() => {
+    console.log('Profile data in CheckoutScreen:', { user, profile, location });
+    
+    if (route.params?.deliveryAddress) {
+      console.log('Using delivery address from route params');
+      setDeliveryAddress(route.params.deliveryAddress);
+    } else if (user || profile || location) {
+      console.log('Updating delivery address from user/profile data');
+      
+      // Get the user's full name from available sources
+      const getUserName = () => {
+        if (profile?.name) return profile.name;
+        if (user?.displayName) return user.displayName;
+        if (user?.firstName) return `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}`;
+        return 'John Doe';
+      };
+      
+      const updatedAddress = {
+        name: getUserName(),
+        email: user?.email || profile?.email || '',
+        phone: profile?.phone || user?.phone || '',
+        street: profile?.address || '123 Main Street',
+        city: 'New York',
+        state: 'NY',
+        pincode: '10001',
+        coordinates: location?.coords ? {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude
+        } : null
+      };
+      
+      console.log('New delivery address:', updatedAddress);
+      setDeliveryAddress(updatedAddress);
+    }
+  }, [user, profile, location, route.params?.deliveryAddress]);
 
   // Handle cart updates
   const handleCartUpdate = useCallback((updatedCart) => {
-    setCart(prevCart => {
-      // Only update if the cart has actually changed
-      if (JSON.stringify(prevCart) !== JSON.stringify(updatedCart)) {
-        return [...updatedCart];
-      }
-      return prevCart;
-    });
+    setCartItems([...updatedCart]);
+    setLoading(false);
   }, []);
 
   // Subscribe to cart updates
   useEffect(() => {
-    // Initial cart load
     const initialCart = getCart();
-    setCart(initialCart);
+    console.log('Initial cart items:', JSON.stringify(initialCart, null, 2));
+    handleCartUpdate(initialCart);
     
-    // Subscribe to future updates
-    const unsubscribe = subscribeToCartUpdates(handleCartUpdate);
+    const unsubscribe = subscribeToCartUpdates((updatedCart) => {
+      console.log('Cart updated:', JSON.stringify(updatedCart, null, 2));
+      handleCartUpdate(updatedCart);
+    });
     
-    // Cleanup subscription on unmount
     return () => {
       if (unsubscribe && typeof unsubscribe === 'function') {
         unsubscribe();
@@ -38,304 +96,391 @@ const CheckoutScreen = ({ navigation }) => {
   }, [handleCartUpdate]);
 
   const calculateSubtotal = () => {
-    return cart.reduce((total, item) => total + (item.product.price * item.quantity), 0);
-  };
-
-  const calculateTax = () => {
-    return calculateSubtotal() * 0.18; // 18% tax
+    return cartItems.reduce((sum, item) => {
+      const price = item.product?.price || item.price || 0;
+      const quantity = item.quantity || 1;
+      return sum + (price * quantity);
+    }, 0);
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal() + calculateTax();
+    const subtotal = calculateSubtotal();
+    const tax = subtotal * 0.18;
+    return subtotal + tax;
   };
 
-  const handlePlaceOrder = async () => {
-    try {
-      setLoading(true);
-      
-      // Ensure we have the latest cart data
-      const currentCart = getCart();
-      
-      // Navigate to PaymentGateway screen with order details
-      navigation.navigate('PaymentGateway', {
-        totalAmount: calculateTotal(),
-        orderId: `ORDER-${Math.floor(100000 + Math.random() * 900000)}`,
-        cartItems: currentCart
-      });
-      
-    } catch (error) {
-      console.error('Error processing order:', error);
-      Alert.alert('Error', 'Failed to process order. Please try again.');
-    } finally {
-      setLoading(false);
+  // Handle place order
+  const handlePlaceOrder = () => {
+    if (cartItems.length === 0) {
+      Alert.alert('Error', 'Your cart is empty');
+      return;
     }
+
+    // Check if user is authenticated
+    if (!user) {
+      // Navigate to login with order data
+      navigation.navigate('Login', {
+        fromCheckout: true,
+        orderData: {
+          items: cartItems,
+          total: calculateTotal(),
+          deliveryAddress,
+          paymentMethod: 'Credit Card'
+        }
+      });
+      return;
+    }
+
+    // Prepare items for order
+    const itemsToPass = cartItems.map(item => ({
+      id: item.id || item.product?.id,
+      name: item.name || item.product?.name,
+      price: item.price || item.product?.price,
+      image: item.image || item.product?.image,
+      quantity: item.quantity || 1
+    }));
+
+    // Navigate to order confirmation
+    navigation.navigate('OrderConfirmation', {
+      items: itemsToPass,
+      total: calculateTotal(),
+      deliveryAddress,
+      paymentMethod: 'Credit Card',
+      userId: user.id
+    });
   };
 
-  if (cart.length === 0) {
+  // Handle navigation after login
+  useEffect(() => {
+    if (route.params?.fromLogin && route.params?.orderData) {
+      // Update state with order data from login
+      const { items, total, deliveryAddress } = route.params.orderData;
+      setCartItems(items);
+      setDeliveryAddress(deliveryAddress);
+      // Remove the params to prevent infinite loop
+      navigation.setParams({ fromLogin: false, orderData: null });
+      
+      // Show a message to the user
+      Alert.alert('Welcome back!', 'You can now proceed with your order.');
+    }
+  }, [route.params, navigation]);
+
+  if (loading) {
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons name="cart-outline" size={80} color="#CCCCCC" />
-        <Text style={styles.emptyText}>Your cart is empty</Text>
-        <TouchableOpacity 
-          style={styles.continueShoppingButton}
-          onPress={() => navigation.navigate('HomeTabs')}
-        >
-          <Text style={styles.continueShoppingText}>Continue Shopping</Text>
-        </TouchableOpacity>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6200ee" />
+        <Text style={styles.loadingText}>Loading your cart...</Text>
       </View>
     );
   }
 
+  const subtotal = calculateSubtotal();
+  const tax = subtotal * 0.18;
+  const totalAmount = subtotal + tax;
+
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Delivery Address */}
+    <SafeAreaView style={styles.container}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Order Summary</Text>
+          
+          {cartItems.map((item, index) => {
+            const itemName = item.name || item.product?.name || 'Unknown Item';
+            const itemPrice = item.price || item.product?.price || 0;
+            const itemQuantity = item.quantity || 1;
+            
+            // Handle image URL - check both item and item.product for image_url
+            let itemImage = 'https://via.placeholder.com/60?text=No+Image';
+            const imagePath = item.image_url || item.product?.image_url || '';
+            
+            if (imagePath) {
+              if (imagePath.startsWith('http') || imagePath.startsWith('file:')) {
+                itemImage = imagePath;
+              } else {
+                // Handle local file paths
+                const baseUrl = getBaseUrl().replace(/\/$/, ''); // Remove trailing slash if exists
+                const cleanPath = imagePath.startsWith('/') ? imagePath.substring(1) : imagePath;
+                itemImage = `${baseUrl}/${cleanPath}`;
+              }
+              console.log('Image URL:', itemImage); // Debug log
+            }
+            
+            return (
+              <View key={`${item.id || index}-${itemName}`} style={styles.cartItem}>
+                <Image 
+                  source={{ uri: itemImage }} 
+                  style={styles.cartItemImage} 
+                  resizeMode="cover"
+                />
+                <View style={styles.cartItemDetails}>
+                  <Text style={styles.cartItemName} numberOfLines={1}>
+                    {itemName}
+                  </Text>
+                  <Text style={styles.cartItemPrice}>
+                    ₹{itemPrice.toFixed(2)} × {itemQuantity}
+                  </Text>
+                </View>
+                <Text style={styles.cartItemTotal}>
+                  ₹{(itemPrice * itemQuantity).toFixed(2)}
+                </Text>
+              </View>
+            );
+          })}
+          
+          <View style={styles.orderTotalContainer}>
+            <View style={styles.orderTotalRow}>
+              <Text style={styles.orderTotalLabel}>Subtotal</Text>
+              <Text style={styles.orderTotalValue}>₹{subtotal.toFixed(2)}</Text>
+            </View>
+            <View style={styles.orderTotalRow}>
+              <Text style={styles.orderTotalLabel}>Tax (18%)</Text>
+              <Text style={styles.orderTotalValue}>₹{tax.toFixed(2)}</Text>
+            </View>
+            <View style={[styles.orderTotalRow, styles.orderTotalRowMain]}>
+              <Text style={styles.orderTotalLabelMain}>Total</Text>
+              <Text style={styles.orderTotalValueMain}>₹{totalAmount.toFixed(2)}</Text>
+            </View>
+          </View>
+        </View>
+        
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={20} color="#333" />
             <Text style={styles.sectionTitle}>Delivery Address</Text>
-          </View>
-          <View style={styles.addressContainer}>
-            <Text style={styles.addressText}>{deliveryAddress}</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => {}}>
               <Text style={styles.changeText}>Change</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Order Summary */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="receipt-outline" size={20} color="#333" />
-            <Text style={styles.sectionTitle}>Order Summary</Text>
-          </View>
-          
-          {cart.map((item) => (
-            <View key={item.id} style={styles.orderItem}>
-              <View style={styles.orderItemDetails}>
-                <Text style={styles.orderItemName}>
-                  {item.product.name} x {item.quantity}
-                </Text>
-                <Text style={styles.orderItemPrice}>
-                  ₹{(item.product.price * item.quantity).toFixed(2)}
-                </Text>
-              </View>
+          <View style={styles.addressContainer}>
+            <View style={styles.addressIcon}>
+              <Ionicons name="location-sharp" size={20} color="#6200ee" />
             </View>
-          ))}
-        </View>
-
-{/* Price Breakdown */}
-        <View style={styles.priceBreakdown}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Subtotal</Text>
-            <Text style={styles.priceValue}>₹{calculateSubtotal().toFixed(2)}</Text>
-          </View>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Tax (18%)</Text>
-            <Text style={styles.priceValue}>₹{calculateTax().toFixed(2)}</Text>
-          </View>
-          <View style={[styles.priceRow, { marginTop: 8 }]}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>₹{calculateTotal().toFixed(2)}</Text>
+            <View style={styles.addressDetails}>
+              <Text style={styles.addressName}>{deliveryAddress.name}</Text>
+              <Text style={styles.addressText}>
+                {deliveryAddress.coordinates ? 
+                  `Near ${deliveryAddress.coordinates.latitude.toFixed(6)}, ${deliveryAddress.coordinates.longitude.toFixed(6)}` : 
+                  deliveryAddress.street}
+              </Text>
+              {deliveryAddress.phone ? (
+                <Text style={styles.addressPhone}>{deliveryAddress.phone}</Text>
+              ) : null}
+            </View>
           </View>
         </View>
       </ScrollView>
-
-      {/* Checkout Button */}
-      <View style={styles.footer}>
+      
+      <View style={styles.checkoutButtonContainer}>
+        <View style={styles.totalContainer}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalAmount}>₹{totalAmount.toFixed(2)}</Text>
+        </View>
         <TouchableOpacity 
-          style={[styles.checkoutButton, loading && styles.disabledButton]}
+          style={[styles.checkoutButton, cartItems.length === 0 && styles.disabledButton]}
           onPress={handlePlaceOrder}
-          disabled={loading}
+          disabled={cartItems.length === 0}
         >
-          {loading ? (
-            <Text style={styles.checkoutButtonText}>Processing...</Text>
-          ) : (
-            <Text style={styles.checkoutButtonText}>
-              Place Order - ₹{calculateTotal().toFixed(2)}
-            </Text>
+          <Text style={styles.checkoutButtonText}>
+            {cartItems.length > 0 ? 'Proceed to Payment' : 'Your Cart is Empty'}
+          </Text>
+          {cartItems.length > 0 && (
+            <Ionicons name="arrow-forward" size={20} color="#fff" style={{ marginLeft: 8 }} />
           )}
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f5f7fa',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 12,
-    paddingBottom: 100, 
+    paddingBottom: 100,
   },
   section: {
     backgroundColor: '#fff',
     borderRadius: 12,
+    margin: 12,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  addressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fafafa',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-  },
-  addressText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#4a4a4a',
-    lineHeight: 20,
-    marginRight: 10,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
   changeText: {
-    color: '#10a310',
+    color: '#6200ee',
     fontSize: 14,
-    fontFamily: 'Roboto-Medium',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '500',
   },
-  orderItem: {
+  cartItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    borderBottomColor: '#f0f0f0',
   },
-  orderItemDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  cartItemImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 12,
   },
-  orderItemName: {
+  cartItemDetails: {
+    flex: 1,
+    marginRight: 8,
+  },
+  cartItemName: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  cartItemPrice: {
     fontSize: 14,
-    color: '#333',
-    fontFamily: 'Roboto-Regular',
-    maxWidth: '70%',
+    color: '#7f8c8d',
   },
-  orderItemPrice: {
-    fontSize: 14,
-    fontFamily: 'Roboto-Medium',
-    color: '#1a1a1a',
+  cartItemTotal: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
-  priceBreakdown: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+  orderTotalContainer: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+    paddingTop: 12,
   },
-  priceRow: {
+  orderTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 8,
   },
-  priceLabel: {
-    fontSize: 14,
-    color: '#6b6b6b',
-    fontFamily: 'Roboto-Regular',
+  orderTotalRowMain: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
-  priceValue: {
+  orderTotalLabel: {
     fontSize: 14,
-    fontFamily: 'Roboto-Medium',
-    color: '#1a1a1a',
+    color: '#7f8c8d',
   },
-  totalLabel: {
+  orderTotalValue: {
+    fontSize: 14,
+    color: '#2c3e50',
+  },
+  orderTotalLabelMain: {
     fontSize: 16,
-    fontFamily: 'Roboto-Bold',
-    color: '#1a1a1a',
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
-  totalValue: {
-    fontSize: 18,
-    fontFamily: 'Roboto-Bold',
-    color: '#10a310',
+  orderTotalValueMain: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
-  footer: {
+  addressContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  addressIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  addressDetails: {
+    flex: 1,
+  },
+  addressName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  addressText: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  addressPhone: {
+    fontSize: 14,
+    color: '#2c3e50',
+    fontWeight: '500',
+  },
+  checkoutButtonContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 16,
     backgroundColor: '#fff',
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 5,
+    borderTopColor: '#f0f0f0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalContainer: {
+    flex: 1,
+  },
+  totalLabel: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    marginBottom: 2,
+  },
+  totalAmount: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2c3e50',
   },
   checkoutButton: {
-    backgroundColor: '#10a310',
+    backgroundColor: '#6200ee',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
     borderRadius: 8,
-    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#10a310',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    justifyContent: 'center',
+    minWidth: 200,
   },
   disabledButton: {
-    backgroundColor: '#a0d8a0',
+    backgroundColor: '#cccccc',
   },
   checkoutButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontFamily: 'Roboto-Bold',
-    letterSpacing: 0.5,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f5f5f5',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#6b6b6b',
-    marginTop: 16,
-    marginBottom: 24,
-    fontFamily: 'Roboto-Medium',
+    fontWeight: '600',
     textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  continueShoppingButton: {
-    backgroundColor: '#10a310',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#10a310',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  continueShoppingText: {
-    color: '#fff',
-    fontSize: 15,
-    fontFamily: 'Roboto-Bold',
-    letterSpacing: 0.5,
   },
 });
 

@@ -45,8 +45,20 @@ export default function CategoriesScreen({ navigation, route }) {
         productService.getProducts()
       ]);
       
+      // Default category images
+      const defaultImages = {
+        'Vegetables & Fruits': 'https://img.icons8.com/color/96/000000/organic-food.png',
+        'Dairy & Bakery': 'https://img.icons8.com/color/96/000000/bread.png',
+        'Electronics': 'https://img.icons8.com/color/96/000000/electronics.png',
+        'Home & Kitchen': 'https://img.icons8.com/color/96/000000/kitchen.png',
+        'Personal Care': 'https://img.icons8.com/color/96/000000/beauty-cosmetic.png'
+      };
+      
       // Add subcategories to main categories
       const categoriesWithSubcategories = categoriesData.map(category => {
+        // Use the image from the backend or fallback to default
+        const imageUrl = category.imageUrl || defaultImages[category.name] || null;
+        
         let subcategories = [];
         
         // Define subcategories based on main category
@@ -82,6 +94,7 @@ export default function CategoriesScreen({ navigation, route }) {
         
         return {
           ...category,
+          imageUrl, // Add the image URL to the category object
           subcategories
         };
       });

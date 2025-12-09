@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,44 +9,61 @@ import {
   TextInput, 
   Switch, 
   Alert, 
-  Linking 
+  Linking,
+  ActivityIndicator
 } from 'react-native';
-import { users } from '../shared/mockData';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../src/contexts/AuthContext';
+import { useProfile } from '../src/contexts/ProfileContext';
 
 const UserProfileScreen = ({ navigation }) => {
-  const [user, setUser] = useState({
-    ...users[0],
-    notifications: true,
-    darkMode: false,
-  });
+  const { user } = useAuth();
+  const { profile, saveProfile, location, locationError, isLoading } = useProfile();
+  
   const [editing, setEditing] = useState(false);
-  const [tempUser, setTempUser] = useState({ ...user });
+  const [tempProfile, setTempProfile] = useState({ ...profile });
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
-  // Mock payment methods
-  const [paymentMethods] = useState([
-    { id: '1', type: 'card', last4: '4242', brand: 'Visa' },
-    { id: '2', type: 'upi', upiId: 'user@upi' },
-  ]);
-
-  // Mock transactions
-  const [transactions] = useState([
-    { id: '1', amount: 450, date: '2023-10-15', status: 'completed', orderId: 'ORD12345' },
-    { id: '2', amount: 320, date: '2023-10-10', status: 'completed', orderId: 'ORD12344' },
-  ]);
+  // Update tempProfile when profile changes
+  useEffect(() => {
+    if (profile) {
+      setTempProfile(profile);
+    }
+  }, [profile]);
 
   const handleEditProfile = () => {
-    setTempUser({ ...user });
+    setTempProfile({ ...profile });
     setEditing(true);
   };
 
-  const handleSaveProfile = () => {
-    setUser({ ...tempUser });
-    setEditing(false);
-    Alert.alert('Success', 'Profile updated successfully');
+  const handleSaveProfile = async () => {
+    try {
+      await saveProfile(tempProfile);
+      setEditing(false);
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to update profile');
+    }
   };
 
   const handleInputChange = (field, value) => {
-    setTempUser(prev => ({ ...prev, [field]: value }));
+    setTempProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleLocationPress = async () => {
+    try {
+      if (location) {
+        const url = `https://www.google.com/maps/search/?api=1&query=${location.coords.latitude},${location.coords.longitude}`;
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          await Linking.openURL(url);
+        }
+      }
+    } catch (error) {
+      console.error('Error opening maps:', error);
+    }
   };
 
   const handleLogout = () => {
@@ -69,153 +86,171 @@ const UserProfileScreen = ({ navigation }) => {
     }
   };
 
-  const renderProfileSection = () => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Profile</Text>
-        {!editing ? (
-          <TouchableOpacity onPress={handleEditProfile}>
-            <Text style={styles.editButton}>Edit</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity onPress={handleSaveProfile}>
-            <Text style={styles.saveButton}>Save</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      <View style={styles.avatarContainer}>
-        <Image 
-          source={{ uri: user.photo || 'https://via.placeholder.com/100' }} 
-          style={styles.avatar} 
-        />
-        {editing && (
-          <TouchableOpacity style={styles.cameraIcon}>
-            <Text>📷</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Full Name</Text>
-        {editing ? (
-          <TextInput
-            style={styles.input}
-            value={tempUser.name}
-            onChangeText={(text) => handleInputChange('name', text)}
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.avatarContainer}>
+          <Image 
+            source={{ uri: user?.photoURL || 'https://via.placeholder.com/100' }} 
+            style={styles.avatar}
           />
+          {editing && (
+            <TouchableOpacity style={styles.editAvatarButton}>
+              <Ionicons name="camera" size={20} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
+        <Text style={styles.name}>{user?.displayName || user?.email?.split('@')[0]}</Text>
+        <Text style={styles.email}>{user?.email}</Text>
+        
+        {location ? (
+          <TouchableOpacity 
+            style={styles.locationContainer}
+            onPress={handleLocationPress}
+          >
+            <Ionicons name="location" size={16} color="#0C831F" />
+            <Text style={styles.locationText}>
+              {location.coords.latitude.toFixed(4)}, {location.coords.longitude.toFixed(4)}
+            </Text>
+            <Ionicons name="open-outline" size={16} color="#0C831F" style={styles.locationIcon} />
+          </TouchableOpacity>
+        ) : locationError ? (
+          <Text style={styles.errorText}>{locationError}</Text>
         ) : (
-          <Text style={styles.infoText}>{user.name}</Text>
+          <Text style={styles.loadingText}>Getting location...</Text>
         )}
       </View>
-      
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Email</Text>
-        {editing ? (
-          <TextInput
-            style={styles.input}
-            value={tempUser.email}
-            onChangeText={(text) => handleInputChange('email', text)}
-            keyboardType="email-address"
-          />
-        ) : (
-          <Text style={styles.infoText}>{user.email}</Text>
-        )}
-      </View>
-      
-      <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Phone</Text>
-        {editing ? (
-          <TextInput
-            style={styles.input}
-            value={tempUser.phone}
-            onChangeText={(text) => handleInputChange('phone', text)}
-            keyboardType="phone-pad"
-          />
-        ) : (
-          <Text style={styles.infoText}>{user.phone}</Text>
-        )}
-      </View>
-    </View>
-  );
 
-  const renderWalletSection = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Wallet & Payments</Text>
-      
-      <View style={styles.walletBalance}>
-        <Text style={styles.walletLabel}>Wallet Balance</Text>
-        <Text style={styles.walletAmount}>₹1,250.00</Text>
-      </View>
-      
-      <View style={styles.paymentMethods}>
+      <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.subsectionTitle}>Payment Methods</Text>
-          <TouchableOpacity onPress={handleAddPaymentMethod}>
-            <Text style={styles.addButtonText}>+ Add</Text>
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          {!editing ? (
+            <TouchableOpacity onPress={handleEditProfile}>
+              <Ionicons name="pencil" size={20} color="#0C831F" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={handleSaveProfile}>
+              <Ionicons name="checkmark" size={24} color="#0C831F" />
+            </TouchableOpacity>
+          )}
         </View>
         
-        {paymentMethods.map(method => (
-          <View key={method.id} style={styles.paymentMethod}>
-            <View style={styles.paymentIcon}>
-              {method.type === 'card' ? '💳' : '📱'}
-            </View>
-            <View style={styles.paymentDetails}>
-              <Text style={styles.paymentType}>
-                {method.type === 'card' ? `•••• ${method.last4} (${method.brand})` : `UPI: ${method.upiId}`}
-              </Text>
-              <Text style={styles.paymentAction}>Edit</Text>
-            </View>
-          </View>
-        ))}
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Name</Text>
+          {editing ? (
+            <TextInput
+              style={styles.input}
+              value={tempProfile.name || ''}
+              onChangeText={(text) => handleInputChange('name', text)}
+              placeholder="Enter your name"
+            />
+          ) : (
+            <Text style={styles.infoValue}>
+              {profile?.name || user?.displayName || 'Not provided'}
+            </Text>
+          )}
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Email</Text>
+          <Text style={styles.infoValue}>{user?.email}</Text>
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Phone</Text>
+          {editing ? (
+            <TextInput
+              style={styles.input}
+              value={tempProfile.phone || ''}
+              onChangeText={(text) => handleInputChange('phone', text)}
+              keyboardType="phone-pad"
+              placeholder="Enter your phone number"
+            />
+          ) : (
+            <Text style={styles.infoValue}>{profile?.phone || 'Not provided'}</Text>
+          )}
+        </View>
+        
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Address</Text>
+          {editing ? (
+            <TextInput
+              style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
+              value={tempProfile.address || ''}
+              onChangeText={(text) => handleInputChange('address', text)}
+              multiline
+              numberOfLines={3}
+              placeholder="Enter your full address"
+            />
+          ) : (
+            <Text style={styles.infoValue}>
+              {profile?.address || 'No address provided'}
+            </Text>
+          )}
+        </View>
       </View>
-      
-      <View style={styles.transactions}>
-        <Text style={styles.subsectionTitle}>Recent Transactions</Text>
-        {transactions.map(tx => (
-          <View key={tx.id} style={styles.transaction}>
-            <View>
-              <Text style={styles.transactionAmount}>₹{tx.amount}</Text>
-              <Text style={styles.transactionDate}>{tx.date}</Text>
-            </View>
-            <View style={styles.transactionRight}>
-              <Text style={styles.transactionId}>#{tx.orderId}</Text>
-              <Text style={[
-                styles.transactionStatus,
-                tx.status === 'completed' ? styles.statusCompleted : styles.statusPending
-              ]}>
-                {tx.status}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
 
-  const renderSettingsSection = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Settings & Help</Text>
-      
-      <View style={styles.settingItem}>
-        <Text style={styles.settingText}>Notifications</Text>
-        <Switch
-          value={user.notifications}
-          onValueChange={(value) => setUser({...user, notifications: value})}
-          trackColor={{ false: '#767577', true: '#81b0ff' }}
-        />
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Account Actions</Text>
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Orders')}
+        >
+          <Ionicons name="receipt-outline" size={20} color="#0C831F" />
+          <Text style={styles.actionButtonText}>My Orders</Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Addresses')}
+        >
+          <Ionicons name="location-outline" size={20} color="#0C831F" />
+          <Text style={styles.actionButtonText}>Saved Addresses</Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('Payments')}
+        >
+          <Ionicons name="card-outline" size={20} color="#0C831F" />
+          <Text style={styles.actionButtonText}>Payment Methods</Text>
+          <Ionicons name="chevron-forward" size={20} color="#999" />
+        </TouchableOpacity>
       </View>
-      
-      <View style={styles.settingItem}>
-        <Text style={styles.settingText}>Dark Mode</Text>
-        <Switch
-          value={user.darkMode}
-          onValueChange={(value) => setUser({...user, darkMode: value})}
-          trackColor={{ false: '#767577', true: '#81b0ff' }}
-        />
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Preferences</Text>
+        
+        <View style={[styles.infoRow, styles.switchContainer]}>
+          <View style={styles.switchLabelContainer}>
+            <Ionicons name="notifications-outline" size={20} color="#666" style={styles.switchIcon} />
+            <Text style={styles.infoLabel}>Notifications</Text>
+          </View>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={setNotificationsEnabled}
+            trackColor={{ false: '#D3D3D3', true: '#90EE90' }}
+            thumbColor={notificationsEnabled ? '#0C831F' : '#f4f3f4'}
+          />
+        </View>
+        
+        <View style={[styles.infoRow, styles.switchContainer]}>
+          <View style={styles.switchLabelContainer}>
+            <Ionicons name="moon-outline" size={20} color="#666" style={styles.switchIcon} />
+            <Text style={styles.infoLabel}>Dark Mode</Text>
+          </View>
+          <Switch
+            value={darkMode}
+            onValueChange={setDarkMode}
+            trackColor={{ false: '#D3D3D3', true: '#90EE90' }}
+            thumbColor={darkMode ? '#0C831F' : '#f4f3f4'}
+          />
+        </View>
       </View>
-      
+
       <TouchableOpacity 
         style={styles.menuItem}
         onPress={() => openLink('https://example.com/faq')}
@@ -246,24 +281,13 @@ const UserProfileScreen = ({ navigation }) => {
       <View style={styles.versionContainer}>
         <Text style={styles.versionText}>App Version 1.0.0</Text>
       </View>
-    </View>
-  );
 
-  const renderLogoutButton = () => (
-    <TouchableOpacity 
-      style={styles.logoutButton}
-      onPress={handleLogout}
-    >
-      <Text style={styles.logoutText}>Logout</Text>
-    </TouchableOpacity>
-  );
-
-  return (
-    <ScrollView style={styles.container}>
-      {renderProfileSection()}
-      {renderWalletSection()}
-      {renderSettingsSection()}
-      {renderLogoutButton()}
+      <TouchableOpacity 
+        style={styles.logoutButton}
+        onPress={handleLogout}
+      >
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -273,45 +297,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  section: {
-    backgroundColor: '#fff',
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    marginHorizontal: 16,
-    marginTop: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  loadingContainer: {
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  subsectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#444',
-    marginBottom: 12,
-  },
-  editButton: {
-    color: '#F8C400',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  saveButton: {
-    color: '#4CAF50',
-    fontWeight: '600',
-    fontSize: 16,
+  header: {
+    backgroundColor: '#fff',
+    padding: 20,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingTop: 40,
+    paddingBottom: 30,
   },
   avatarContainer: {
     alignItems: 'center',
@@ -324,7 +321,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     marginBottom: 10,
   },
-  cameraIcon: {
+  editAvatarButton: {
     position: 'absolute',
     bottom: 5,
     right: 5,
@@ -333,128 +330,112 @@ const styles = StyleSheet.create({
     padding: 5,
     elevation: 3,
   },
-  inputGroup: {
-    marginBottom: 16,
+  name: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginTop: 10,
+    color: '#333',
   },
-  inputLabel: {
+  email: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: '#f0f9f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  locationText: {
+    marginLeft: 4,
+    color: '#0C831F',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  locationIcon: {
+    marginLeft: 4,
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+    marginTop: 8,
+  },
+  loadingText: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  section: {
+    backgroundColor: '#fff',
+    marginTop: 10,
+    padding: 15,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    margin: 0,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    alignItems: 'flex-start',
+  },
+  infoLabel: {
     fontSize: 14,
     color: '#666',
     marginBottom: 4,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    padding: 12,
-    fontSize: 16,
-    color: '#333',
-  },
-  infoText: {
-    fontSize: 16,
-    color: '#333',
-    paddingVertical: 8,
-  },
-  walletBalance: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  walletLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  walletAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  paymentMethods: {
-    marginBottom: 20,
-  },
-  paymentMethod: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  paymentIcon: {
-    marginRight: 12,
-    fontSize: 20,
-  },
-  paymentDetails: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  paymentType: {
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
+    paddingVertical: 5,
     fontSize: 14,
     color: '#333',
+    textAlign: 'right',
   },
-  paymentAction: {
-    color: '#F8C400',
-    fontWeight: '500',
-  },
-  transactions: {
-    marginTop: 16,
-  },
-  transaction: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  transactionRight: {
-    alignItems: 'flex-end',
-  },
-  transactionAmount: {
+  infoValue: {
     fontSize: 16,
-    fontWeight: '600',
     color: '#333',
-    marginBottom: 4,
   },
-  transactionDate: {
-    fontSize: 12,
-    color: '#888',
-  },
-  transactionId: {
-    fontSize: 12,
-    color: '#888',
-    marginBottom: 4,
-  },
-  transactionStatus: {
-    fontSize: 12,
-    fontWeight: '500',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
-  statusCompleted: {
-    backgroundColor: '#E8F5E9',
-    color: '#2E7D32',
-  },
-  statusPending: {
-    backgroundColor: '#FFF8E1',
-    color: '#FF8F00',
-  },
-  settingItem: {
+  actionButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  settingText: {
+  actionButtonText: {
+    flex: 1,
     fontSize: 16,
     color: '#333',
+  },
+  switchLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  switchIcon: {
+    marginRight: 10,
+  },
+  switchContainer: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   menuItem: {
     flexDirection: 'row',

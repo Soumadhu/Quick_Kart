@@ -1,8 +1,18 @@
 import { Platform, NativeModules } from 'react-native';
 import { getApiBaseUrl, getBaseUrl } from './apiConfig';
 
-const API_BASE_URL = getApiBaseUrl();
-const STATIC_BASE_URL = getBaseUrl();
+// Get base URLs dynamically
+const getApiUrl = () => {
+  const url = getApiBaseUrl();
+  console.log('[CategoryService] Using API URL:', url);
+  return url;
+};
+
+const getStaticUrl = () => {
+  const url = getBaseUrl();
+  console.log('[CategoryService] Using static URL:', url);
+  return url;
+};
 
 // Helper function to handle API requests with timeout and retry
 const apiRequest = async (endpoint, options = {}) => {
@@ -10,14 +20,18 @@ const apiRequest = async (endpoint, options = {}) => {
   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
   try {
-    console.log(`[Category API] ${options.method || 'GET'} ${endpoint}`);
+    // Ensure endpoint starts with a slash and doesn't have double slashes
+    const cleanEndpoint = `/${endpoint.replace(/^\/+/, '')}`.replace(/\/+$/, '');
+    const baseUrl = getApiUrl();
+    const url = `${baseUrl}${cleanEndpoint}`;
     
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    console.log(`[Category API] ${options.method || 'GET'} ${url}`);
+    
+    const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
-        'Expires': '0',
         ...options.headers,
       },
       signal: controller.signal,
@@ -40,57 +54,116 @@ const apiRequest = async (endpoint, options = {}) => {
       throw error;
     }
 
-    return await response.json();
+    // Handle JSON response
+    const data = await response.json();
+    return data;
+
   } catch (error) {
-    clearTimeout(timeoutId);
-    
-    console.error('[Category API] Request error:', {
+    console.error(`[Category API] Request error:`, {
       endpoint,
       error: error.message,
-      name: error.name,
       status: error.status,
-      isNetworkError: error.message === 'Network request failed',
-      isTimeout: error.name === 'AbortError'
+      isNetworkError: error.name === 'TypeError' && error.message.includes('fetch'),
+      isTimeout: error.name === 'AbortError',
+      name: error.name
     });
-    
-    if (error.name === 'AbortError') {
-      throw new Error('Request timed out. Please check your internet connection.');
-    } else if (error.message.includes('Network request failed')) {
-      throw new Error('Could not connect to the server. Please check your internet connection.');
-    }
-    
     throw error;
   }
 };
 
+// Default category images
+const defaultCategoryImages = {
+  'Vegetables & Fruits': 'https://img.icons8.com/color/96/000000/organic-food.png',
+  'Dairy & Bakery': 'https://img.icons8.com/color/96/000000/bread.png',
+  'Electronics': 'https://img.icons8.com/color/96/000000/electronics.png',
+  'Home & Kitchen': 'https://img.icons8.com/color/96/000000/kitchen.png',
+  'Personal Care': 'https://img.icons8.com/color/96/000000/beauty-cosmetic.png'
+};
+
 export const fetchCategories = async () => {
   try {
-    console.log(`[Category API] Fetching categories from: ${API_BASE_URL}/categories`);
-    const categories = await apiRequest('/categories');
+    const endpoint = '/categories';
+    const apiUrl = getApiUrl();
+    const staticUrl = getStaticUrl();
+    const fullUrl = `${apiUrl}${endpoint}`;
+    console.log(`[Category API] Fetching categories from: ${fullUrl}`);
     
-    // Add full image URLs to categories
-    return categories.map(category => ({
-      ...category,
-      imageUrl: category.image ? `${STATIC_BASE_URL}/${category.image}` : null
-    }));
+    // apiRequest already handles the response and returns the parsed JSON
+    const categories = await apiRequest(endpoint, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+    });
+
+    // Log the API response for debugging
+    console.log('[Category API] Raw response:', JSON.stringify(categories, null, 2));
+    
+    // Process categories to ensure they have proper image URLs
+    const processedCategories = categories.map(category => {
+      // Determine the image URL
+      let imageUrl = category.imageUrl || category.image || null;
+      
+      // If we don't have an image URL, try to use a default one
+      if (!imageUrl && category.name && defaultCategoryImages[category.name]) {
+        imageUrl = defaultCategoryImages[category.name];
+      }
+      
+      // If the URL is relative, make it absolute
+      if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('file')) {
+        // Remove leading slash if present
+        const cleanPath = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
+        imageUrl = `${staticUrl}/${cleanPath}`.replace(/([^:]\/)\/+/g, '$1');
+      }
+      
+      console.log(`[Category API] Processed category: ${category.name}`, {
+        originalImage: category.image,
+        finalImageUrl: imageUrl
+      });
+      
+      return {
+        ...category,
+        imageUrl: imageUrl
+      };
+    });
+    
+    console.log('Categories loaded:', processedCategories.length);
+    return processedCategories;
   } catch (error) {
     console.error('[Category API] Failed to fetch categories:', error);
     
     // Return fallback data if API fails
     console.warn('Using fallback mock categories');
     return [
-      { id: 1, name: 'Vegetables & Fruits', image: null, imageUrl: null },
-      { id: 2, name: 'Dairy & Bakery', image: null, imageUrl: null },
-      { id: 3, name: 'Electronics', image: null, imageUrl: null },
-      { id: 4, name: 'Home & Kitchen', image: null, imageUrl: null },
-      { id: 5, name: 'Personal Care', image: null, imageUrl: null }
+      { id: 1, name: 'Vegetables & Fruits', image: 'vegetables.jpg', imageUrl: null },
+      { id: 2, name: 'Dairy & Bakery', image: 'dairy.jpg', imageUrl: null },
+      { id: 3, name: 'Electronics', image: 'electronics.jpg', imageUrl: null },
+      { id: 4, name: 'Home & Kitchen', image: 'home.jpg', imageUrl: null },
+      { id: 5, name: 'Personal Care', image: 'personal-care.jpg', imageUrl: null }
     ];
   }
 };
 
 export const getCategoryImageUrl = (category) => {
-  if (!category?.image) return null;
-  return `${STATIC_BASE_URL}/${category.image}`;
+  if (!category?.image) {
+    console.log('[Category] No image for category:', category?.name || 'Unknown');
+    return null;
+  }
+  
+  // Remove leading slash if present to avoid double slashes
+  const imagePath = category.image.startsWith('/') ? category.image.substring(1) : category.image;
+  const imageUrl = `${STATIC_BASE_URL}/${imagePath}`;
+  
+  console.log('[Category] Generated image URL:', {
+    category: category.name,
+    image: category.image,
+    baseUrl: STATIC_BASE_URL,
+    finalUrl: imageUrl
+  });
+  
+  return imageUrl;
 };
 
 export default {

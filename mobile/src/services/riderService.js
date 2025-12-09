@@ -13,7 +13,7 @@ const registerRider = async (riderData) => {
     };
 
     console.log('Sending registration request with data:', requestData);
-    const response = await api.post('/api/riders/register', requestData);
+    const response = await api.post('riders/register', requestData);
     return response.data;
   } catch (error) {
     console.error('Registration error details:', {
@@ -44,7 +44,7 @@ const loginRider = async (credentials) => {
     console.log('[RiderService] Logging in with credentials:', credentials);
     console.log('[RiderService] API base URL:', api.defaults.baseURL);
     
-    const response = await api.post('/api/riders/login', credentials);
+    const response = await api.post('/riders/login', credentials);
     console.log('[RiderService] Login response:', response.status, response.data);
     
     // If login is successful, store the token and user data
@@ -83,7 +83,7 @@ const loginRider = async (credentials) => {
 
 const getRiderProfile = async () => {
   try {
-    const response = await api.get('/profile');
+    const response = await api.get('riders/profile');
     return response.data;
   } catch (error) {
     if (error.response) {
@@ -148,7 +148,7 @@ const updateRiderProfile = async (profileData, options = {}) => {
       console.log('Sending update request to /profile with data:', dataToSend);
     }
     
-    const response = await api.put('/profile', dataToSend, config);
+    const response = await api.put('riders/profile', dataToSend, config);
     console.log('Update response:', response.data);
     
     // Update stored rider data if available

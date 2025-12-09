@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const db = require('../config/db');
+const bcrypt = require('bcryptjs');
 const { JWT_SECRET } = process.env;
+const User = require('../models/User');
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -36,8 +38,10 @@ exports.register = [
 
       const { email, password, firstName, lastName, phone } = req.body;
 
-      // Check if user already exists
-      const existingUser = await User.findByEmail(email);
+      // Check if user already exists (case-insensitive)
+      const existingUser = await db('users')
+        .whereRaw('LOWER(email) = ?', [email.toLowerCase()])
+        .first();
       if (existingUser) {
         return res.status(400).json({ 
           message: 'Email already registered',
@@ -47,7 +51,7 @@ exports.register = [
 
       // Create new user
       const user = await User.create({
-        email,
+        email: email.toLowerCase(),
         password,
         firstName,
         lastName,
@@ -89,14 +93,17 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findByEmail(email);
+    // Find user by email using Knex (case-insensitive)
+    const user = await db('users')
+      .whereRaw('LOWER(email) = ?', [email.toLowerCase()])
+      .first();
+      
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     // Check password
-    const isMatch = await require('bcryptjs').compare(password, user.password_hash);
+    const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }

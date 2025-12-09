@@ -32,7 +32,7 @@ const AdminRiders = () => {
   const fetchRiders = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/riders');
+      const response = await apiClient.get('riders');
       
       // Transform the data to match the expected format
       const ridersData = response.data.map(rider => ({

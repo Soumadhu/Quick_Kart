@@ -16,7 +16,20 @@ class CategoryController {
   async getCategories(req, res) {
     try {
       const categories = await this.categoryModel.getAll();
-      res.json(categories);
+      
+      // Add full URL to each category's image
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const categoriesWithFullUrls = categories.map(category => ({
+        ...category,
+        // If image exists and doesn't already have a full URL, add the base URL
+        image: category.image 
+          ? category.image.startsWith('http') 
+            ? category.image 
+            : `${baseUrl}/${category.image.replace(/^\/+/, '')}`
+          : null
+      }));
+      
+      res.json(categoriesWithFullUrls);
     } catch (error) {
       console.error('Error in getCategories:', error);
       res.status(500).json({ 
@@ -36,7 +49,18 @@ class CategoryController {
         return res.status(404).json({ error: 'Category not found' });
       }
       
-      res.json(category);
+      // Add full URL to the category's image
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const categoryWithFullUrl = {
+        ...category,
+        image: category.image 
+          ? category.image.startsWith('http') 
+            ? category.image 
+            : `${baseUrl}/${category.image.replace(/^\/+/, '')}`
+          : null
+      };
+      
+      res.json(categoryWithFullUrl);
     } catch (error) {
       console.error('Error in getCategoryById:', error);
       res.status(500).json({ 

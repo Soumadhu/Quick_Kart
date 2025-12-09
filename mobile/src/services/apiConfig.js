@@ -7,17 +7,16 @@ const ENV = 'development'; // Change to 'production' for production builds
 
 // Default server configuration
 const DEFAULT_PORT = '5000';
-// Use the computer's IP address for development
-const DEFAULT_IP = '192.168.0.103'; // Your computer's IP address
-const HARDCODED_IP = DEFAULT_IP;
-const HARDCODED_PORT = DEFAULT_PORT;
+// Default IP that will be used if no configuration is found
+// Using computer's local IP for device access
+const DEFAULT_IP = '192.168.0.100'; // Changed from 192.168.0.103 to match server IP
 
 // Ensure we have a valid IP and port
 const getValidServerInfo = () => {
   const serverInfo = getMetroServerInfo();
   return {
-    ip: serverInfo.ip || HARDCODED_IP,
-    port: serverInfo.port || HARDCODED_PORT
+    ip: serverInfo.ip || DEFAULT_IP,
+    port: serverInfo.port || DEFAULT_PORT
   };
 };
 
@@ -36,9 +35,21 @@ const getStoredConfig = () => {
   // In web environment
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      const config = window.localStorage.getItem('quickkart_api_config');
+      // First try the new format from ip-config.html
+      let config = window.localStorage.getItem('apiConfig');
       if (config) {
-        console.log('[API] Using config from localStorage:', config);
+        config = JSON.parse(config);
+        // Convert to the expected format
+        return {
+          ip: config.ip,
+          port: config.port || DEFAULT_PORT
+        };
+      }
+      
+      // Fall back to old format for backward compatibility
+      config = window.localStorage.getItem('quickkart_api_config');
+      if (config) {
+        console.log('[API] Using config from localStorage (legacy):', config);
         return JSON.parse(config);
       }
     } catch (e) {
@@ -74,21 +85,18 @@ if (typeof window !== 'undefined') {
 
 // Global object to store the current config for runtime updates
 if (typeof window !== 'undefined') {
-  window.__QUICKKART_API_CONFIG = window.__QUICKKART_API_CONFIG || {
-    ip: '192.168.0.103',
-    port: '5000'
+  const storedConfig = getStoredConfig();
+  window.__QUICKKART_API_CONFIG = {
+    ip: storedConfig?.ip || DEFAULT_IP,
+    port: storedConfig?.port || DEFAULT_PORT
   };
 }
 
 // Get the Metro bundler's IP address from localStorage or use a default
 const getMetroServerInfo = () => {
-  // Default values if nothing is found
-  const DEFAULT_IP = '192.168.0.103'; // Changed to 103
-  const DEFAULT_PORT = '5000';
-  
   // First try to get from localStorage (works in both web and React Native with proper polyfill)
   const storedConfig = getStoredConfig();
-  if (storedConfig && storedConfig.ip) {
+  if (storedConfig?.ip) {
     console.log(`[API] Using stored config: ${storedConfig.ip}:${storedConfig.port || DEFAULT_PORT}`);
     return {
       ip: storedConfig.ip,
@@ -146,11 +154,11 @@ const getMetroServerInfo = () => {
     console.warn('Error detecting server info:', error);
   }
   
-  // If we get here, return the hardcoded values
-  console.warn(`Using hardcoded IP: ${HARDCODED_IP}:${HARDCODED_PORT}`);
+  // If we couldn't determine the IP, use the default
+  console.log(`[API] Using default server: ${DEFAULT_IP}:${DEFAULT_PORT}`);
   return {
-    ip: HARDCODED_IP,
-    port: HARDCODED_PORT
+    ip: DEFAULT_IP,
+    port: DEFAULT_PORT
   };
 };
 
@@ -158,7 +166,7 @@ const getMetroServerInfo = () => {
 const getLocalIPAddress = () => {
   // This is a placeholder - in a real app, you might want to get this from environment variables
   // or have the user input it in the app's settings
-  return '192.168.0.103'; // Replace with your computer's local IP address
+  return '192.168.0.100'; // Replace with your computer's local IP address
 };
 
 // Get the server configuration based on environment and platform
@@ -203,12 +211,42 @@ const getServerConfig = () => {
 const config = getServerConfig();
 console.log('[API] Creating axios instance with config:', config);
 
+// Default headers for all requests
+const defaultHeaders = {
+  'Accept': 'application/json',
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'Pragma': 'no-cache'
+};
+
+// Ensure baseURL is properly formatted
+let baseURL = config.baseURL || 'http://192.168.0.100:5000/api';
+
+// Remove trailing slash if present
+if (typeof baseURL === 'string' && baseURL.endsWith('/')) {
+  baseURL = baseURL.slice(0, -1);
+}
+
+console.log('[API] Using baseURL:', baseURL);
+
 // Create axios instance with the config
 const apiClient = axios.create({
-  baseURL: config.baseURL,
-  timeout: config.timeout,
-  headers: config.headers
+  baseURL: baseURL,
+  timeout: 30000, // 30 seconds
+  headers: defaultHeaders,
+  withCredentials: true, // Enable sending cookies with requests
+  crossDomain: true // Important for CORS
 });
+
+// Function to get auth token
+const getAuthToken = async () => {
+  try {
+    return await AsyncStorage.getItem('userToken');
+  } catch (e) {
+    console.warn('Failed to get auth token:', e);
+    return null;
+  }
+};
 
 // Log the final configuration
 console.log('[API] Axios instance created with baseURL:', apiClient.defaults.baseURL);
@@ -218,23 +256,37 @@ apiClient.interceptors.request.use(
   async (config) => {
     console.log(`[API] Request: ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     
+    // Skip auth for these paths
+    const publicEndpoints = ['/api/auth/login', '/api/auth/register', '/api/auth/refresh-token'];
+    if (publicEndpoints.some(endpoint => config.url.includes(endpoint))) {
+      return config;
+    }
+    
     // Get token from AsyncStorage
     try {
-      const token = await AsyncStorage.getItem('riderToken');
-      console.log('Token from storage:', token); // Debug log
+      // Try to get both riderToken and userToken
+      const [riderToken, userToken] = await Promise.all([
+        AsyncStorage.getItem('riderToken'),
+        AsyncStorage.getItem('userToken')
+      ]);
+      
+      // Use whichever token is available
+      const token = riderToken || userToken;
+      
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('Authorization header set with token'); // Debug log
+        console.log('[API] Authorization header set with token');
       } else {
-        console.log('No token found in AsyncStorage'); // Debug log
+        console.warn('[API] No authentication token found for protected route');
+        // Don't throw error here, let the server handle unauthorized requests
       }
     } catch (error) {
-      console.warn('Error getting token from storage:', error);
+      console.warn('[API] Error getting token from storage:', error);
     }
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('[API] Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -242,10 +294,10 @@ apiClient.interceptors.request.use(
 // Add response interceptor to handle errors
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response) {
       // Server responded with a status code outside 2xx
-      console.error('API Error Response:', {
+      console.error('[API] Error Response:', {
         status: error.response.status,
         statusText: error.response.statusText,
         url: error.config?.url,
@@ -255,13 +307,32 @@ apiClient.interceptors.response.use(
       
       // Handle specific status codes
       if (error.response.status === 401) {
-        console.log('Unauthorized - token may be invalid or expired');
-        // Clear invalid token
-        AsyncStorage.removeItem('riderToken');
+        console.log('[API] Unauthorized - token may be invalid or expired');
+        
+        // Clear all auth tokens
+        await Promise.all([
+          AsyncStorage.removeItem('riderToken'),
+          AsyncStorage.removeItem('userToken'),
+          AsyncStorage.removeItem('user')
+        ]);
+        
+        // Only redirect if not already on login/register screen
+        const currentRoute = error.config?.url || '';
+        if (!currentRoute.includes('/auth/')) {
+          // Import NavigationService or use your navigation method
+          try {
+            const { NavigationService } = require('../navigation/NavigationService');
+            NavigationService.navigate('Auth');
+          } catch (e) {
+            console.warn('Could not navigate to login:', e);
+          }
+        }
+        
+        error.message = 'Your session has expired. Please log in again.';
       }
     } else if (error.request) {
       // Request was made but no response received
-      console.error('API Request Error - No response received:', {
+      console.error('[API] Request Error - No response received:', {
         url: error.config?.url,
         method: error.config?.method,
         message: error.message
@@ -271,12 +342,12 @@ apiClient.interceptors.response.use(
       if (error.message === 'Network Error') {
         error.message = 'Cannot connect to the server. Please check your internet connection and try again.';
       }
-    } else if (error.response && error.response.status >= 500) {
+    } else if (error.response?.status >= 500) {
       // Server error
       error.message = 'Server error. Please try again later.';
     } else {
       // Error in request setup
-      console.error('API Setup Error:', error.message);
+      console.error('[API] Setup Error:', error.message);
     }
     
     return Promise.reject(error);
@@ -285,15 +356,20 @@ apiClient.interceptors.response.use(
 
 // Get the appropriate API URL based on platform and environment
 export function getApiBaseUrl() {
-  return apiClient.defaults.baseURL || '';
+  const { ip, port } = getValidServerInfo();
+  // Include /api in the base URL and ensure no double slashes
+  const baseUrl = `http://${ip}:${port}/api`.replace(/([^:]\/)\/+$/, '$1');
+  console.log(`[API] Using base URL: ${baseUrl}`);
+  return baseUrl;
 }
 
 // Get base URL for static assets
 export function getBaseUrl() {
-  const baseApiUrl = getApiBaseUrl();
-  if (!baseApiUrl) return '';
-  // Remove '/api' from the end if present
-  return baseApiUrl.replace(/\/api$/, '');
+  const { ip, port } = getValidServerInfo();
+  // Ensure we have a clean URL without double slashes
+  const baseUrl = `http://${ip}:${port}`.replace(/([^:]\/)\/+$/, '$1');
+  console.log(`[API] Static assets base URL: ${baseUrl}`);
+  return baseUrl;
 }
 
 // Export the configured axios instance

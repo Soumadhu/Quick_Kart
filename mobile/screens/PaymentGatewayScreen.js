@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -9,7 +9,9 @@ import {
   Image,
   Dimensions,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { MaterialIcons, Ionicons, FontAwesome, FontAwesome5 } from '@expo/vector-icons';
 
@@ -68,8 +70,9 @@ const wallets = [
 ];
 
 const PaymentGatewayScreen = ({ navigation, route }) => {
-  const { totalAmount = 0 } = route.params || {};
-  const [selectedMethod, setSelectedMethod] = useState('card');
+  const { totalAmount = 0, cartItems = [] } = route.params || {};
+  const [selectedMethod, setSelectedMethod] = useState('cod'); // Default to Cash on Delivery
+  const [loading, setLoading] = useState(true);
   const [saveCard, setSaveCard] = useState(false);
   const [cardNumber, setCardNumber] = useState('');
   const [cardName, setCardName] = useState('');
@@ -79,14 +82,85 @@ const PaymentGatewayScreen = ({ navigation, route }) => {
   const [selectedBank, setSelectedBank] = useState('');
   const [selectedWallet, setSelectedWallet] = useState('');
 
-  const handlePayment = () => {
-    const orderNumber = `BLK${Math.floor(100000 + Math.random() * 900000)}`;
-    
-    navigation.navigate('OrderConfirmation', { 
-      amount: totalAmount,
-      method: paymentMethods.find(m => m.id === selectedMethod)?.name || 'Payment',
-      orderNumber: orderNumber
-    });
+  useEffect(() => {
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6200ee" />
+        <Text style={styles.loadingText}>Processing your order...</Text>
+      </View>
+    );
+  }
+
+  const handlePayment = async () => {
+    try {
+      setLoading(true);
+      
+      // Get the latest cart data
+      const currentCart = route.params?.cartItems || [];
+      
+      if (currentCart.length === 0) {
+        Alert.alert('Error', 'Your cart is empty');
+        return;
+      }
+
+      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const paymentMethod = paymentMethods.find(m => m.id === selectedMethod)?.name || 'Online Payment';
+      
+      // Calculate total amount including tax
+      const subtotal = currentCart.reduce((sum, item) => {
+        const price = item.product?.price || item.price || 0;
+        const quantity = item.quantity || 1;
+        return sum + (price * quantity);
+      }, 0);
+      
+      const tax = subtotal * 0.18; // 18% tax
+      const total = subtotal + tax;
+      
+      // Prepare order items in the required format
+      const orderItems = currentCart.map(item => ({
+        id: item.id || item.product?.id,
+        product: {
+          id: item.id || item.product?.id,
+          name: item.name || item.product?.name || 'Unknown Product',
+          price: item.price || item.product?.price || 0,
+          image: item.image || item.product?.image
+        },
+        quantity: item.quantity || 1,
+        price: item.price || item.product?.price || 0
+      }));
+      
+      // Navigate to order confirmation with all necessary data
+      navigation.navigate('OrderConfirmation', { 
+        amount: total,
+        method: paymentMethod,
+        orderNumber,
+        items: orderItems,
+        deliveryAddress: {
+          // Add delivery address details here or get from user input
+          name: 'Your Name',
+          street: '123 Main St',
+          city: 'Your City',
+          state: 'Your State',
+          pincode: '123456',
+          phone: '+1234567890'
+        },
+        paymentDetails: {
+          method: paymentMethod,
+          transactionId: `TXN${Date.now()}`,
+          status: 'completed'
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      Alert.alert('Error', 'Failed to process payment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatAmount = (amount) => {
@@ -424,6 +498,17 @@ const PaymentGatewayScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f7fa',

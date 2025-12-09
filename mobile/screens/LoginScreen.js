@@ -13,11 +13,39 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    const result = await login(email, password);
-    if (result.success) {
-      // Navigation will be handled by the AuthProvider
-    } else {
-      Alert.alert('Login Failed', result.error || 'An error occurred');
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        // Check if we came from checkout or order confirmation
+        const fromCheckout = navigation.getParam('fromCheckout', false);
+        const fromOrderConfirmation = navigation.getParam('fromOrderConfirmation', false);
+        const orderData = navigation.getParam('orderData', null);
+        
+        if (fromOrderConfirmation && orderData) {
+          // If we came from order confirmation, go back to it
+          navigation.navigate('OrderConfirmation', { 
+            ...orderData,
+            fromLogin: true
+          });
+        } else if (fromCheckout && orderData) {
+          // If we came from checkout, go back to it
+          navigation.navigate('Checkout', { 
+            ...orderData,
+            fromLogin: true
+          });
+        } else {
+          // Default navigation after login
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Main' }],
+          });
+        }
+      } else {
+        Alert.alert('Login Failed', result.error || 'An error occurred');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', error.message || 'An error occurred during login');
     }
   };
 

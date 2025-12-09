@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { BannersProvider } from './context/BannersContext';
+import { ProfileProvider } from './src/contexts/ProfileContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { subscribeToCartUpdates, getCart } from './shared/cartService';
 import ApiTest from './src/test/ApiTest';
@@ -35,6 +36,7 @@ import RiderLoginScreen from './screens/rider/RiderLoginScreen';
 import RiderRegistrationScreen from './screens/rider/RiderRegistrationScreen';
 import RiderTabs from './navigation/RiderTabs';
 import AdminPanel from './screens/admin/AdminPanel';
+import AdminOrders from './screens/admin/AdminOrders';
 import DarkStore from './screens/admin/DarkStore';
 import HomeContentManager from './screens/admin/HomeContentManager';
 import AdminCategories from './app/screens/admin/AdminCategories';
@@ -495,6 +497,42 @@ function Navigation() {
         }}
       />
       <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{
+          title: 'Login',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#F8C400',
+          },
+          headerTintColor: '#000',
+        }}
+      />
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{
+          title: 'Create Account',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#F8C400',
+          },
+          headerTintColor: '#000',
+        }}
+      />
+      <Stack.Screen
+        name="AdminOrders"
+        component={AdminOrders}
+        options={{
+          title: 'Manage Orders',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#f8f9fa',
+          },
+          headerTintColor: '#2c3e50',
+        }}
+      />
+      <Stack.Screen
         name="AdminPanel"
         component={AdminPanel}
         options={{
@@ -645,6 +683,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BannersProvider>
+        <ProfileProvider>
         <NavigationContainer 
           linking={linking} 
           fallback={<SplashScreen />}
@@ -660,7 +699,8 @@ export default function App() {
             </View>
           </ErrorBoundary>
         </NavigationContainer>
-      </BannersProvider>
-    </AuthProvider>
+      </ProfileProvider>
+    </BannersProvider>
+  </AuthProvider>
   );
 }
